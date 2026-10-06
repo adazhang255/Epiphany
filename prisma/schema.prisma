@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Note {
+  id        String     @id @default(cuid())
+  title     String
+  content   String
+  // No longer used: categories the AI once gave whole entries
+  category  String     @default("Personal")
+  // Category you chose for the whole entry (comma-separated); when empty the
+  // entry's category comes from its highlights
+  ownCategory String   @default("")
+  tags      String     @default("")
+  // Filled by the LLM: comma-separated topic names and suggested tags
+  topics    String     @default("")
+  autoTags  String     @default("")
+  // Included in the public static site when true (see /publish)
+  published Boolean    @default(false)
+  // Overall tone from the local model: -2 (very negative) to 2 (very positive)
+  sentiment Int?
+  // JSON number[] embedding of the whole entry, for "Ask your journal"
+  embedding String?
+  // Where an imported entry came from, e.g. "Google Doc: Journal 2025"
+  source    String     @default("")
+  date      DateTime   @default(now())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  quotes    Quote[]    @relation("NoteQuotes")
+  // Question highlights that this entry answered
+  answers   Quote[]    @relation("QuestionAnswers")
+  // Questions and wonderings found in this entry's text
+  questions Question[] @relation("NoteQuestions")
+  // Questions (from any entry) that this entry answered
+  answered  Question[] @relation("QuestionAnsweredBy")
+}
+
+model Quote {
+  id           String    @id @default(cuid())
+  note         Note      @relation("NoteQuotes", fields: [noteId], references: [id])
+  noteId       String
+  quote        String
+  category     String    @default("General")
+  tags         String    @default("")
+  // Marked by you on the entry page (kept when highlights are regenerated)
+  manual       Boolean   @default(false)
+  // JSON number[] from the embedding model; used to find related highlights
+  embedding    String?
+  // For "Question" highlights: when it was answered, and by which later entry
+  answeredAt   DateTime?
+  answerNote   Note?     @relation("QuestionAnswers", fields: [answerNoteId], references: [id], onDelete: SetNull)
+  answerNoteId String?
+  // An Insight that answers a question from an earlier entry ("Find answers"
+  // on the Questions view). Kept when highlights are regenerated.
+  replyTo      Question? @relation("QuestionReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyToId    String?
+  // Its thread on the Threads page: null = grouped automatically by
+  // similarity; a thread id ("t-…") = you put it in that thread; "none" =
+  // you took it out of threads
+  thread       String?
+  createdAt    DateTime  @default(now())
+}
+
+// A chart pinned on the Custom page (built by hand or by asking the AI)
+model SavedChart {
+  id        String   @id @default(cuid())
+  title     String
+  spec      String
+  createdAt DateTime @default(now())
+}
+
+// A sentence from an entry that asks something ("?") or wonders ("perhaps",
+// "maybe", "I wonder"…). Found by rule, not by the AI, so none are missed.
+model Question {
+  id           String    @id @default(cuid())
+  note         Note      @relation("NoteQuestions", fields: [noteId], references: [id], onDelete: Cascade)
+  noteId       String
+  text         String
+  // "question" (ends in ?) or "wondering" (perhaps, maybe, I wonder…)
+  kind         String
+  embedding    String?
+  answeredAt   DateTime?
+  answerNote   Note?     @relation("QuestionAnsweredBy", fields: [answerNoteId], references: [id], onDelete: SetNull)
+  answerNoteId String?
+  // passages in later entries that answer it (Insight highlights)
+  replies      Quote[]   @relation("QuestionReplies")
+  // its thread on the Threads page (as for highlights)
+  thread       String?
+  createdAt    DateTime  @default(now())
+
+  @@unique([noteId, text])
+}

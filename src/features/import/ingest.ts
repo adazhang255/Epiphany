@@ -1,0 +1,154 @@
+import { findQuote } from "@/features/notes/lib/findQuote"
+import { chatJSON } from "@/features/notes/services/ollama.service"
+import { splitOnMarkers, type Segment } from "@/features/import/split"
+
+export type ProposedEntry = {
+  title: string
+  date: string | null // YYYY-MM-DD
+  dateFrom: "document" | "ai" | null
+  content: string
+}
+
+// Roughly what fits in the model's context next to the instructions.
+const SPLIT_WINDOW = 18_000
+// Shorter than this, a document without headings or dates is one entry.
+const MIN_SPLIT_CHARS = 600
+const META_PREVIEW = 700
+
+const splitSchema = {
+  type: "object",
+  properties: {
+    entries: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          firstWords: { type: "string" },
+        },
+        required: ["firstWords"],
+      },
+    },
+  },
+  required: ["entries"],
+}
+
+const SPLIT_PROMPT = `You are given text from a document that may contain several separate journal entries or notes written at different times.
+Find where each separate entry begins. For each entry, copy its first 6 to 10 words EXACTLY as written (firstWords).
+If the whole text is a single entry, return just one item with its first words. Do not summarise or rewrite anything.`
+
+// One entry per call with a flat schema: small local models handle this far
+// more reliably than a batch (they tend to return an empty list).
+const metaSchema = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    date: { type: "string" },
+  },
+  required: ["title", "date"],
+}
+
+function metaPrompt(year: number) {
+  return `For this journal entry, give:
+- title: a short title of 2 to 6 words, in the writer's own terms. No quotes.
+- date: the date the entry was written as YYYY-MM-DD, only if the text states it (e.g. a date line or "today is June 3"). Otherwise "". Never guess from words like "today" or "tonight". If a month and day are given without a year, use ${year}.`
+}
+
+const DATE_MENTION =
+  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}(st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b/i
+
+function mentionsDate(text: string) {
+  return DATE_MENTION.test(text)
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function validDate(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null
+  const d = new Date(`${value}T00:00`)
+  const year = d.getFullYear()
+  return !Number.isNaN(d.getTime()) &&
+    year >= 1900 &&
+    d <= new Date(Date.now() + 86_400_000)
+    ? value
+    : null
+}
+
+// Ask the model where entries start, then cut the original text at those
+// points. Text is always cut from the document itself, never retyped.
+async function aiSplit(text: string, model: string): Promise<Segment[]> {
+  const starts = new Set<number>([0])
+  for (let offset = 0; offset < text.length; offset += SPLIT_WINDOW) {
+    const window = text.slice(offset, offset + SPLIT_WINDOW)
+    const { entries } = await chatJSON<{ entries: { firstWords: string }[] }>(
+      SPLIT_PROMPT,
+      window,
+      splitSchema,
+      { temperature: 0, model },
+    )
+    for (const entry of entries ?? []) {
+      const range = findQuote(window, String(entry.firstWords ?? ""))
+      if (range) starts.add(offset + range.start)
+    }
+  }
+  const sorted = [...starts].sort((a, b) => a - b)
+  return sorted
+    .map((start, i) => ({
+      heading: null,
+      date: null,
+      content: text.slice(start, sorted[i + 1] ?? text.length).trim(),
+    }))
+    .filter((s) => s.content.length > 0)
+}
+
+export async function proposeEntries(
+  text: string,
+  model: string,
+  onlyOne = false,
+): Promise<ProposedEntry[]> {
+  const clean = text.trim()
+  if (!clean) return []
+
+  let segments = onlyOne
+    ? [{ heading: null, date: null, content: clean }]
+    : splitOnMarkers(clean)
+  if (!onlyOne && segments.length < 2 && clean.length > MIN_SPLIT_CHARS) {
+    segments = await aiSplit(clean, model)
+  }
+
+  // A title and date for each entry.
+  const year = new Date().getFullYear()
+  const meta = new Map<number, { title: string; date: string | null }>()
+  for (const [i, segment] of segments.entries()) {
+    if (segment.heading && segment.date) continue
+    const reply = await chatJSON<{ title: string; date: string }>(
+      metaPrompt(year),
+      `${segment.heading ? `Heading: ${segment.heading}\n\n` : ""}${segment.content.slice(0, META_PREVIEW)}`,
+      metaSchema,
+      { temperature: 0.1, model },
+    )
+    meta.set(i, {
+      title: String(reply.title ?? "")
+        .replace(/^["“]|["”]$/g, "")
+        .trim()
+        .slice(0, 80),
+      // only trust a date the text actually mentions
+      date: mentionsDate(segment.content.slice(0, META_PREVIEW))
+        ? validDate(reply.date)
+        : null,
+    })
+  }
+
+  return segments.map((segment, i) => {
+    const ai = meta.get(i)
+    const date = segment.date ?? ai?.date ?? null
+    return {
+      title: capitalize(segment.heading || ai?.title || "Untitled thought"),
+      date,
+      dateFrom: segment.date ? "document" : date ? "ai" : null,
+      content: segment.content,
+    }
+  })
+}

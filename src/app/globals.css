@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-work-sans), system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
+
+  --color-ink: #f5f4ef;
+  --color-paper: #0f0f10;
+  --color-panel: #161617;
+  --color-muted: #8a8a82;
+  --color-ember: #e8c27a;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: linear-gradient(#0e0e0f, #131314) fixed;
+  color: #d6d3cc;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* keep anchored targets clear of the sticky header */
+  scroll-padding-top: 6rem;
+}
+
+/* Ruled notebook paper for the writing surface */
+.notebook {
+  line-height: 30px;
+  background-color: rgb(255 255 255 / 0.03);
+  background-image:
+    linear-gradient(to right, rgb(210 120 120 / 0.35) 1px, transparent 1px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 29px,
+      rgb(255 255 255 / 0.12) 29px,
+      rgb(255 255 255 / 0.12) 30px
+    );
+  background-position:
+    40px 0,
+    0 10px;
+  background-repeat: no-repeat, repeat;
+  background-attachment: local;
+  padding-left: 52px;
+  padding-top: 10px;
+}
+
+/* A whole entry as a sheet of that paper (Notebook page): lifted off the
+   desk, with room in the margin for binder holes. */
+.notebook-page {
+  background-blend-mode: normal;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 18px 40px -18px rgb(0 0 0 / 0.8),
+    0 2px 6px rgb(0 0 0 / 0.4);
+  border: 1px solid rgb(255 255 255 / 0.06);
+}
+
+/* Highlights inside a full note. The one you arrived from glows. */
+.note-mark {
+  background: var(--mark-bg, rgb(232 194 122 / 0.12));
+  border-bottom: 2px solid var(--mark-line, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 0.6s ease;
+}
+
+.note-mark:target,
+.note-mark[data-active="true"] {
+  background: var(--mark-bg-strong, rgb(232 194 122 / 0.38));
+  box-shadow: 0 0 0 3px rgb(232 194 122 / 0.18);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* The timeline walker: limbs swing while you scroll or drag */
+.walker .leg,
+.walker .arm {
+  transform-box: view-box;
+}
+.walker .leg {
+  transform-origin: 13px 19px;
+}
+.walker .arm {
+  transform-origin: 13px 12px;
+}
+.walker.is-walking .leg-a,
+.walker.is-walking .arm-b {
+  animation: stride 0.42s ease-in-out infinite alternate;
+}
+.walker.is-walking .leg-b,
+.walker.is-walking .arm-a {
+  animation: stride 0.42s ease-in-out infinite alternate-reverse;
+}
+@keyframes stride {
+  from {
+    transform: rotate(-22deg);
+  }
+  to {
+    transform: rotate(22deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .walker.is-walking .leg,
+  .walker.is-walking .arm {
+    animation: none;
+  }
+}
+
+/* Saving feedback */
+.note-mark-new {
+  background-color: transparent;
+  background-image: linear-gradient(
+    var(--mark-bg, rgb(232 194 122 / 0.22)),
+    var(--mark-bg, rgb(232 194 122 / 0.22))
+  );
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: highlight-sweep 0.9s ease-out forwards;
+}
+@keyframes highlight-sweep {
+  to {
+    background-size: 100% 100%;
+  }
+}
+.save-tick {
+  display: inline-block;
+  animation: tick-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes tick-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.save-fade,
+.save-toast {
+  animation: fade-up 0.5s ease-out both;
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-mark-new {
+    animation: none;
+    background-size: 100% 100%;
+  }
+  .save-tick,
+  .save-fade,
+  .save-toast {
+    animation: none;
+  }
+}
+
+/* Ask's `sl` command: a steam train crosses the screen, then leaves. */
+.sl-train {
+  animation: sl-drive 5s linear forwards;
+}
+@keyframes sl-drive {
+  from {
+    transform: translateX(100vw);
+  }
+  to {
+    transform: translateX(-110%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sl-train {
+    animation-duration: 0.01s;
+  }
+}
+
+/* A day you jumped to on the timeline (from a square on Stats): a faint,
+   thin outline around it that fades away. */
+.jump-target {
+  border-radius: 14px;
+  outline: 1px solid transparent;
+  outline-offset: 8px;
+  animation: jump-glow 1.8s ease-out;
+}
+@keyframes jump-glow {
+  0%,
+  30% {
+    outline-color: rgb(232 194 122 / 0.35);
+  }
+  100% {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jump-target {
+    animation-duration: 0.01s;
+  }
+}
