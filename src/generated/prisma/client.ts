@@ -61,3 +61,13 @@ export type SavedChart = Prisma.SavedChartModel
  * 
  */
 export type Question = Prisma.QuestionModel
+/**
+ * Model Tracker
+ * 
+ */
+export type Tracker = Prisma.TrackerModel
+/**
+ * Model TrackerMark
+ * 
+ */
+export type TrackerMark = Prisma.TrackerMarkModel

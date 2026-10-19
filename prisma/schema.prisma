@@ -11,36 +11,36 @@ datasource db {
 }
 
 model Note {
-  id        String     @id @default(cuid())
-  title     String
-  content   String
+  id          String     @id @default(cuid())
+  title       String
+  content     String
   // No longer used: categories the AI once gave whole entries
-  category  String     @default("Personal")
+  category    String     @default("Personal")
   // Category you chose for the whole entry (comma-separated); when empty the
   // entry's category comes from its highlights
-  ownCategory String   @default("")
-  tags      String     @default("")
+  ownCategory String     @default("")
+  tags        String     @default("")
   // Filled by the LLM: comma-separated topic names and suggested tags
-  topics    String     @default("")
-  autoTags  String     @default("")
+  topics      String     @default("")
+  autoTags    String     @default("")
   // Included in the public static site when true (see /publish)
-  published Boolean    @default(false)
+  published   Boolean    @default(false)
   // Overall tone from the local model: -2 (very negative) to 2 (very positive)
-  sentiment Int?
+  sentiment   Int?
   // JSON number[] embedding of the whole entry, for "Ask your journal"
-  embedding String?
+  embedding   String?
   // Where an imported entry came from, e.g. "Google Doc: Journal 2025"
-  source    String     @default("")
-  date      DateTime   @default(now())
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  quotes    Quote[]    @relation("NoteQuotes")
+  source      String     @default("")
+  date        DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  quotes      Quote[]    @relation("NoteQuotes")
   // Question highlights that this entry answered
-  answers   Quote[]    @relation("QuestionAnswers")
+  answers     Quote[]    @relation("QuestionAnswers")
   // Questions and wonderings found in this entry's text
-  questions Question[] @relation("NoteQuestions")
+  questions   Question[] @relation("NoteQuestions")
   // Questions (from any entry) that this entry answered
-  answered  Question[] @relation("QuestionAnsweredBy")
+  answered    Question[] @relation("QuestionAnsweredBy")
 }
 
 model Quote {
@@ -99,4 +99,27 @@ model Question {
   createdAt    DateTime  @default(now())
 
   @@unique([noteId, text])
+}
+
+// A day-by-day tracker on Custom that you fill in yourself, apart from your
+// entries ("How am I feeling?"): a question and its legend, and one mark per
+// day. Ask and the writer profile read them as context.
+model Tracker {
+  id        String        @id @default(cuid())
+  name      String
+  // JSON [{ key, label, color }], in order (e.g. low to high)
+  legend    String
+  createdAt DateTime      @default(now())
+  marks     TrackerMark[]
+}
+
+model TrackerMark {
+  id        String   @id @default(cuid())
+  tracker   Tracker  @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  trackerId String
+  day       String // YYYY-MM-DD
+  value     String // one of its legend's keys
+  updatedAt DateTime @updatedAt
+
+  @@unique([trackerId, day])
 }

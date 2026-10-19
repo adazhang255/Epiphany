@@ -38,6 +38,7 @@ import { DeleteEntryButton } from "@/components/DeleteEntryButton"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { NotebookTitle } from "@/components/NotebookTitle"
 import { OnTop } from "@/components/OnTop"
+import { timeOfDay as entryTime } from "@/features/notes/lib/time"
 import {
   NEW_ENTRY_DRAFT,
   confirmDiscard,
@@ -75,20 +76,8 @@ function longDate(iso: string) {
   })
 }
 
-// The time it was written: the entry's own time if it has one, else when it
-// was saved, if that was the same day. Backdated or imported entries have no
-// known time, so none is shown.
-function timeOfDay(note: NotebookNote) {
-  const date = new Date(note.date)
-  const saved = new Date(note.createdAt)
-  const at =
-    date.getHours() || date.getMinutes()
-      ? date
-      : saved.toDateString() === date.toDateString()
-        ? saved
-        : null
-  return at?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
+const timeOfDay = (note: NotebookNote) =>
+  entryTime(note.date, note.createdAt)
 
 // One entry as one sheet of the same ruled paper as the Write page: red
 // margin, binder holes, text on the lines, a page number at the foot. Short

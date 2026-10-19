@@ -55,3 +55,21 @@ export function describeAgo(date: Date, now = new Date()) {
 export function dayKey(date: Date) {
   return `${monthKey(date)}-${String(date.getDate()).padStart(2, "0")}`
 }
+
+// The time an entry was written, as "9:41 PM": the entry's own time if it has
+// one, else when it was saved, if that was the same day. Backdated or imported
+// entries have no known time (midnight), so this is null for them.
+export function timeOfDay(date: Date | string, createdAt?: Date | string) {
+  const d = new Date(date)
+  const saved = createdAt ? new Date(createdAt) : null
+  const at =
+    d.getHours() || d.getMinutes()
+      ? d
+      : saved && saved.toDateString() === d.toDateString()
+        ? saved
+        : null
+  return (
+    at?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) ??
+    null
+  )
+}

@@ -21,6 +21,8 @@ import {
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import { CategoryLanes } from "@/components/CategoryLanes"
 import { DayHeatmap, type HeatmapDay } from "@/components/DayHeatmap"
+import { Trackers, TrackersProvider } from "@/components/Trackers"
+import { listTrackers } from "@/features/trackers/trackers"
 import { getInsightsDataset } from "@/features/insights/dataset"
 import { dayKey } from "@/features/notes/lib/time"
 import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
@@ -28,16 +30,19 @@ import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
 export const dynamic = "force-dynamic"
 
 export default async function StatsPage() {
-  const [notes, charts, memories, profile, threads] = await Promise.all([
-    getInsightsDataset(),
-    getSavedCharts(),
-    getTimeline(),
-    // the public site's is written from its public entries as it's built
-    PUBLIC_SITE
-      ? writeProfile({ save: false }).catch(() => null)
-      : readProfile(),
-    getThreads("related").then((t) => t.threads),
-  ])
+  const [notes, charts, memories, profile, threads, trackers] =
+    await Promise.all([
+      getInsightsDataset(),
+      getSavedCharts(),
+      getTimeline(),
+      // the public site's is written from its public entries as it's built
+      PUBLIC_SITE
+        ? writeProfile({ save: false }).catch(() => null)
+        : readProfile(),
+      getThreads("related").then((t) => t.threads),
+      // your own day-by-day answers: never on the public site
+      PUBLIC_SITE ? Promise.resolve(null) : listTrackers(),
+    ])
   const years = yearReviews(memories, threads)
   const pinned = charts.flatMap((chart) => {
     try {
@@ -115,97 +120,102 @@ export default async function StatsPage() {
   const unanalyzed = notes.filter((n) => n.topics.length === 0).map((n) => n.id)
 
   return (
-    <div>
-      <StatsTabs />
-      <div className="space-y-10 pt-10">
-        <header>
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
-            Statistics
-          </p>
-          <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">
-            Your writing, measured
-          </h1>
-        </header>
+    <TrackersProvider initial={trackers} today={dayKey(new Date())}>
+      <div>
+        <StatsTabs />
+        <div className="space-y-10 pt-10">
+          <header>
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+              Statistics
+            </p>
+            <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">
+              Your writing, measured
+            </h1>
+          </header>
 
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {tiles.map((tile) => (
-            <div
-              key={tile.label}
-              className="rounded-xl border border-white/[0.07] bg-panel p-4"
-            >
-              <dt className="text-xs text-stone-500">{tile.label}</dt>
-              <dd className="mt-1 font-serif text-3xl text-ink">
-                {tile.value}
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {tiles.map((tile) => (
+              <div
+                key={tile.label}
+                className="rounded-xl border border-white/[0.07] bg-panel p-4"
+              >
+                <dt className="text-xs text-stone-500">{tile.label}</dt>
+                <dd className="mt-1 font-serif text-3xl text-ink">
+                  {tile.value}
+                </dd>
+              </div>
+            ))}
+            <div className="col-span-2 rounded-xl border border-white/[0.07] bg-panel p-4 sm:col-span-1">
+              <dt className="text-xs text-stone-500">Most common highlight</dt>
+              <dd className="mt-2 flex items-center gap-2 font-serif text-xl text-ink">
+                {topCategory ? (
+                  <>
+                    <span
+                      aria-hidden
+                      className="h-3 w-3 rounded-sm"
+                      style={{ background: categoryColor(topCategory) }}
+                    />
+                    {categoryGlyph(topCategory)} {topCategory}
+                  </>
+                ) : (
+                  "—"
+                )}
               </dd>
             </div>
-          ))}
-          <div className="col-span-2 rounded-xl border border-white/[0.07] bg-panel p-4 sm:col-span-1">
-            <dt className="text-xs text-stone-500">Most common highlight</dt>
-            <dd className="mt-2 flex items-center gap-2 font-serif text-xl text-ink">
-              {topCategory ? (
-                <>
-                  <span
-                    aria-hidden
-                    className="h-3 w-3 rounded-sm"
-                    style={{ background: categoryColor(topCategory) }}
-                  />
-                  {categoryGlyph(topCategory)} {topCategory}
-                </>
-              ) : (
-                "—"
-              )}
-            </dd>
+          </dl>
+
+          <div className="space-y-3">
+            <AnalyzeAllButton noteIds={unanalyzed} />
+            <ReanalyzeAllButton noteIds={notes.map((n) => n.id)} />
+            <ClassifyButton
+              missing={notes.filter((n) => n.sentiment === null).length}
+            />
           </div>
-        </dl>
 
-        <div className="space-y-3">
-          <AnalyzeAllButton noteIds={unanalyzed} />
-          <ReanalyzeAllButton noteIds={notes.map((n) => n.id)} />
-          <ClassifyButton
-            missing={notes.filter((n) => n.sentiment === null).length}
+          <WriterProfile
+            saved={profile}
+            job={PUBLIC_SITE ? null : profileJob()}
           />
+
+          <YearInReview years={years} />
+
+          <OnThisDayToday
+            notes={memories.map((n) => ({
+              id: n.id,
+              title: n.title,
+              date: n.date,
+              createdAt: n.createdAt,
+              content: n.content,
+              ownCategory: n.ownCategory,
+              quotes: n.quotes.map((q) => ({
+                id: q.id,
+                quote: q.quote,
+                category: q.category,
+              })),
+            }))}
+            className=""
+            moreHref="/on-this-day"
+            showEmpty
+          />
+
+          {/* Day by day: your writing is one tracker, yours are the others
+              (the public site shows just the writing) */}
+          {PUBLIC_SITE ? <DayHeatmap days={days} /> : <Trackers days={days} />}
+
+          <CategoryLanes
+            today={new Date().toISOString()}
+            entries={notes.map((n) => ({
+              id: n.id,
+              title: n.title,
+              date: n.date,
+              category: n.purposes[0] ?? null,
+              sentiment: n.sentiment,
+            }))}
+          />
+
+          <PinnedCharts saved={pinned} notes={notes} />
         </div>
-
-        <WriterProfile
-          saved={profile}
-          job={PUBLIC_SITE ? null : profileJob()}
-        />
-
-        <YearInReview years={years} />
-
-        <OnThisDayToday
-          notes={memories.map((n) => ({
-            id: n.id,
-            title: n.title,
-            date: n.date,
-            content: n.content,
-            ownCategory: n.ownCategory,
-            quotes: n.quotes.map((q) => ({
-              id: q.id,
-              quote: q.quote,
-              category: q.category,
-            })),
-          }))}
-          className=""
-          moreHref="/on-this-day"
-          showEmpty
-        />
-
-        <DayHeatmap days={days} />
-
-        <CategoryLanes
-          today={new Date().toISOString()}
-          entries={notes.map((n) => ({
-            id: n.id,
-            title: n.title,
-            date: n.date,
-            category: n.purposes[0] ?? null,
-            sentiment: n.sentiment,
-          }))}
-        />
-
-        <PinnedCharts saved={pinned} notes={notes} />
       </div>
-    </div>
+    </TrackersProvider>
   )
 }

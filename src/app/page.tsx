@@ -24,6 +24,7 @@ export default async function TimelinePage() {
     title: n.title,
     content: n.content,
     date: n.date,
+    createdAt: n.createdAt,
     ownCategory: n.ownCategory,
     quotes: n.quotes.map((q) => ({
       id: q.id,

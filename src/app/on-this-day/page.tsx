@@ -13,6 +13,7 @@ export default async function OnThisDayPage() {
       id: true,
       title: true,
       date: true,
+      createdAt: true,
       content: true,
       ownCategory: true,
       quotes: {

@@ -18,6 +18,7 @@ import {
   dayKey,
   describeAgo,
   formatDay,
+  timeOfDay,
   formatMonth,
   monthKey,
 } from "@/features/notes/lib/time"
@@ -44,6 +45,7 @@ export type TimelineNoteData = {
   title: string
   content: string
   date: Date
+  createdAt: Date
   ownCategory: string
   quotes: { id: string; quote: string; category: string; manual: boolean }[]
 }
@@ -136,6 +138,7 @@ function QuoteCard({
 }
 
 function NoteEntry({ note }: { note: TimelineNote }) {
+  const time = timeOfDay(note.date, note.createdAt)
   const shown = note.quotes.slice(0, VISIBLE_HIGHLIGHTS)
   const hidden = note.quotes.slice(VISIBLE_HIGHLIGHTS)
   const grid = "grid gap-3 sm:grid-cols-3"
@@ -149,6 +152,9 @@ function NoteEntry({ note }: { note: TimelineNote }) {
         >
           <EntryTitle title={note.title} />
         </Link>
+        {time && (
+          <span className="font-mono text-[11px] text-stone-500">{time}</span>
+        )}
         <PurposeBadges purposes={note.purposes} />
         <DeleteEntryButton
           noteId={note.id}

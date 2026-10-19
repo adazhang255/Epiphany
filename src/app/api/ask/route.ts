@@ -25,6 +25,7 @@ import {
 import { chartReply, wantsChart } from "@/features/ask/chart"
 import { parseSpec, type ChartSpec } from "@/features/insights/spec"
 import { titleText } from "@/features/notes/lib/titles"
+import { trackerContext } from "@/features/trackers/trackers"
 
 type Message = { role: "user" | "assistant"; content: string }
 
@@ -64,9 +65,13 @@ const MAX_STEPS = 4
 
 function sourceBlock(
   sources: Awaited<ReturnType<typeof findSources>>["sources"],
+  // they keep daily trackers, which may answer it instead
+  withTrackers = false,
 ) {
   if (sources.length === 0)
-    return "NONE. No journal entries matched this question. Say so in one sentence. Do not quote, cite ([1]…), date or describe any entry: there are none to use."
+    return withTrackers
+      ? "NONE. No journal entries matched this question. Do not quote, cite ([1]…), date or describe any entry: there are none to use. If their daily trackers below answer it, answer from those, saying that's what you're going by; otherwise say in one sentence that nothing matched."
+      : "NONE. No journal entries matched this question. Say so in one sentence. Do not quote, cite ([1]…), date or describe any entry: there are none to use."
   return sources
     .map(
       (s) =>
@@ -152,10 +157,19 @@ export async function POST(req: Request) {
         send({ status: "thinking" })
         const model = await pickAskModel()
         const latest = messages.at(-1)!
+        // what they answered day by day on their trackers (recent months):
+        // context alongside the entries, never cited as one
+        const recent = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10)
+        const daily = await trackerContext({ since: recent }).catch(() => "")
+        const trackers = daily
+          ? `\n\nDaily trackers they fill in themselves (self-reported answers, not journal entries: use them as context, e.g. how they felt on a day an entry describes; never cite them with [n] numbers):\n\n${daily}`
+          : ""
         const prompt = [
           {
             role: "system" as const,
-            content: `${SYSTEM_PROMPT}\n\nJournal entries:\n\n${sourceBlock(sources)}`,
+            content: `${SYSTEM_PROMPT}\n\nJournal entries:\n\n${sourceBlock(sources, Boolean(daily))}${trackers}`,
           },
           ...messages.slice(0, -1),
           {

@@ -244,6 +244,24 @@ Privacy & Security), which covers every Node script; without it the
 nightly job fails and the daily in-app backup is what you have.
 `npm run backup:unschedule` turns it off.
 
+## Trackers
+
+Stats → Day by day (on the overview) is a slideshow: your writing first,
+then each tracker you make, with ‹ › to flip between them. This browser
+keeps showing the one you chose until you pick another. A tracker is a
+question you answer each day yourself ("How am I feeling?", "How did I
+sleep?"), apart from your entries. Your local AI suggests the answers (a
+scale, low to high, or kinds of things); change them as you like, and add
+more later with "+ Add answer". Like the writing grid, a tracker shows its
+answers on top (pick one to light only its days), the year grid, and at the
+bottom where you answer today, or any day you click. Ask and the writer
+profile read your answers as context alongside your entries. They're saved
+in your journal's database (so they're in its backups) and never go on the
+public site.
+
+Turning them on in an existing journal adds two tables, once:
+`npm run db:push`.
+
 ## Writer profile
 
 Stats → "You, from your writing": your local AI reads ten entries spread

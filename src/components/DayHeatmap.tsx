@@ -85,7 +85,17 @@ function dayColor(day: HeatmapDay | undefined, mode: Mode) {
 }
 
 // One square per day, one color per square: the day's category, or its tone.
-export function DayHeatmap({ days }: { days: Record<string, HeatmapDay> }) {
+export function DayHeatmap({
+  days,
+  title = "Day by day",
+  nav,
+}: {
+  days: Record<string, HeatmapDay>
+  // its heading ("Your writing" among the trackers on the overview)
+  title?: string
+  // the slideshow's arrows: one each side of the grid
+  nav?: { prev: React.ReactNode; next: React.ReactNode }
+}) {
   const years = useMemo(
     () =>
       Array.from(
@@ -153,7 +163,7 @@ export function DayHeatmap({ days }: { days: Record<string, HeatmapDay> }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="heatmap-title" className="font-serif text-xl text-ink">
-            Day by day
+            {title}
           </h2>
           <p className="mt-1 text-sm text-stone-400">
             {entryCount} {entryCount === 1 ? "entry" : "entries"} across{" "}
@@ -241,114 +251,119 @@ export function DayHeatmap({ days }: { days: Record<string, HeatmapDay> }) {
         className="relative mt-4"
         onMouseLeave={() => setHover(null)}
       >
-        <div className="overflow-x-auto pb-1">
-          <div className="inline-flex gap-2">
-            <div
-              aria-hidden
-              className="grid font-mono text-[10px] text-stone-500"
-              style={{
-                gridTemplateRows: `14px repeat(7, ${CELL}px)`,
-                rowGap: GAP,
-              }}
-            >
-              <span />
-              {WEEKDAYS.map((d, i) => (
-                <span key={i} className="leading-[12px]">
-                  {d}
-                </span>
-              ))}
-            </div>
-            <div className="flex" style={{ gap: GAP }}>
-              {weeks.map((week, w) => {
-                const firstOfMonth = week.find((d) => d?.getDate() === 1)
-                return (
-                  <div
-                    key={w}
-                    className="grid"
-                    style={{
-                      gridTemplateColumns: `${CELL}px`,
-                      gridTemplateRows: `14px repeat(7, ${CELL}px)`,
-                      rowGap: GAP,
-                    }}
-                  >
-                    <span
-                      aria-hidden
-                      className="whitespace-nowrap font-mono text-[10px] leading-[12px] text-stone-500"
+        {/* the grid, with (in the slideshow) an arrow each side */}
+        <div className="flex items-center gap-4">
+          {nav?.prev}
+          <div className="min-w-0 overflow-x-auto pb-1">
+            <div className="inline-flex gap-2">
+              <div
+                aria-hidden
+                className="grid font-mono text-[10px] text-stone-500"
+                style={{
+                  gridTemplateRows: `14px repeat(7, ${CELL}px)`,
+                  rowGap: GAP,
+                }}
+              >
+                <span />
+                {WEEKDAYS.map((d, i) => (
+                  <span key={i} className="leading-[12px]">
+                    {d}
+                  </span>
+                ))}
+              </div>
+              <div className="flex" style={{ gap: GAP }}>
+                {weeks.map((week, w) => {
+                  const firstOfMonth = week.find((d) => d?.getDate() === 1)
+                  return (
+                    <div
+                      key={w}
+                      className="grid"
+                      style={{
+                        gridTemplateColumns: `${CELL}px`,
+                        gridTemplateRows: `14px repeat(7, ${CELL}px)`,
+                        rowGap: GAP,
+                      }}
                     >
-                      {firstOfMonth?.toLocaleDateString("en-US", {
-                        month: "short",
-                      }) ?? ""}
-                    </span>
-                    {week.map((date, d) => {
-                      if (!date) return <span key={d} />
-                      const k = key(date)
-                      const day = days[k]
-                      const show = (el: HTMLElement) => {
-                        const box = el.getBoundingClientRect()
-                        const parent = el
-                          .closest("[data-heatmap]")!
-                          .getBoundingClientRect()
-                        setHover({
-                          key: k,
-                          x: box.left - parent.left + CELL / 2,
-                          y: box.top - parent.top,
-                        })
-                      }
-                      const cell = (
-                        <span
-                          className="block h-full w-full rounded-[3px] transition-opacity"
-                          style={{
-                            ...(isUnset(day, mode)
-                              ? UNSET_STYLE
-                              : { background: dayColor(day, mode) }),
-                            opacity: !day
-                              ? 1
-                              : matchesFocus(day)
-                                ? density(day.words, mostWords)
-                                : 0.12,
-                          }}
-                        />
-                      )
-                      const label = `${date.toDateString()}: ${
-                        day
-                          ? `${day.entries} ${day.entries === 1 ? "entry" : "entries"}, ${day.words.toLocaleString()} words, ${
-                              mode === "category"
-                                ? (day.category ?? "no highlights yet")
-                                : day.sentiment === null
-                                  ? "not scored yet"
-                                  : SENTIMENT_LABELS[
-                                      sentimentStep(day.sentiment)
-                                    ]
-                            }`
-                          : "nothing written"
-                      }`
-                      return day ? (
-                        <a
-                          key={d}
-                          href={`${BASE_PATH}/#d-${k}`}
-                          aria-label={label}
-                          onMouseEnter={(e) => show(e.currentTarget)}
-                          onFocus={(e) => show(e.currentTarget)}
-                          onBlur={() => setHover(null)}
-                          className="block rounded-[3px] outline-offset-1 hover:ring-1 hover:ring-white/60"
-                        >
-                          {cell}
-                        </a>
-                      ) : (
-                        <span
-                          key={d}
-                          aria-label={label}
-                          onMouseEnter={(e) => show(e.currentTarget)}
-                        >
-                          {cell}
-                        </span>
-                      )
-                    })}
-                  </div>
-                )
-              })}
+                      <span
+                        aria-hidden
+                        className="whitespace-nowrap font-mono text-[10px] leading-[12px] text-stone-500"
+                      >
+                        {firstOfMonth?.toLocaleDateString("en-US", {
+                          month: "short",
+                        }) ?? ""}
+                      </span>
+                      {week.map((date, d) => {
+                        if (!date) return <span key={d} />
+                        const k = key(date)
+                        const day = days[k]
+                        const show = (el: HTMLElement) => {
+                          const box = el.getBoundingClientRect()
+                          const parent = el
+                            .closest("[data-heatmap]")!
+                            .getBoundingClientRect()
+                          setHover({
+                            key: k,
+                            x: box.left - parent.left + CELL / 2,
+                            y: box.top - parent.top,
+                          })
+                        }
+                        const cell = (
+                          <span
+                            className="block h-full w-full rounded-[3px] transition-opacity"
+                            style={{
+                              ...(isUnset(day, mode)
+                                ? UNSET_STYLE
+                                : { background: dayColor(day, mode) }),
+                              opacity: !day
+                                ? 1
+                                : matchesFocus(day)
+                                  ? density(day.words, mostWords)
+                                  : 0.12,
+                            }}
+                          />
+                        )
+                        const label = `${date.toDateString()}: ${
+                          day
+                            ? `${day.entries} ${day.entries === 1 ? "entry" : "entries"}, ${day.words.toLocaleString()} words, ${
+                                mode === "category"
+                                  ? (day.category ?? "no highlights yet")
+                                  : day.sentiment === null
+                                    ? "not scored yet"
+                                    : SENTIMENT_LABELS[
+                                        sentimentStep(day.sentiment)
+                                      ]
+                              }`
+                            : "nothing written"
+                        }`
+                        return day ? (
+                          <a
+                            key={d}
+                            href={`${BASE_PATH}/#d-${k}`}
+                            aria-label={label}
+                            onMouseEnter={(e) => show(e.currentTarget)}
+                            onFocus={(e) => show(e.currentTarget)}
+                            onBlur={() => setHover(null)}
+                            className="block rounded-[3px] outline-offset-1 hover:ring-1 hover:ring-white/60"
+                          >
+                            {cell}
+                          </a>
+                        ) : (
+                          <span
+                            key={d}
+                            aria-label={label}
+                            onMouseEnter={(e) => show(e.currentTarget)}
+                          >
+                            {cell}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
+          {nav?.next}
         </div>
 
         {hover && (

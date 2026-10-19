@@ -7,6 +7,7 @@ import {
   pickAskModel,
 } from "@/features/notes/services/ollama.service"
 import { titleText } from "@/features/notes/lib/titles"
+import { trackerContext } from "@/features/trackers/trackers"
 
 // A portrait of the writer, the way Ask answers: the local model reads a
 // dozen entries spread across the whole journal (title, date, the start of
@@ -156,12 +157,20 @@ export async function writeProfile({
 } = {}) {
   const { text, entries, read } = await sample()
   if (entries === 0) return null
+  // their trackers too (own profile only): context, not entries
+  const daily = save ? await trackerContext({ most: 180 }).catch(() => "") : ""
+  const trackers = daily
+    ? `\n\nDaily trackers they fill in themselves (self-reported answers to a question each day, not entries; use them to notice patterns, e.g. how they felt over time, but never invent or quote them as entries):\n\n${daily}`
+    : ""
   onStep?.(1, 1)
   const write = async () => {
     let markdown = ""
     for await (const piece of chatStream(
       [
-        { role: "system", content: `${SYSTEM}\n\nJournal entries:\n\n${text}` },
+        {
+          role: "system",
+          content: `${SYSTEM}\n\nJournal entries:\n\n${text}${trackers}`,
+        },
         { role: "user", content: SHAPE },
       ],
       {

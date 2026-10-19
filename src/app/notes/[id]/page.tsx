@@ -17,6 +17,7 @@ import {
   describeAgo,
   describeGap,
   formatLongDate,
+  timeOfDay,
 } from "@/features/notes/lib/time"
 import {
   entryCategories,
@@ -114,7 +115,10 @@ export default async function NotePage({
               custom={custom}
             >
               <p className="pr-32 font-mono text-xs uppercase tracking-[0.2em] text-muted">
-                {formatLongDate(note.date)} · {describeAgo(note.date)}
+                {formatLongDate(note.date)}
+                {timeOfDay(note.date, note.createdAt) &&
+                  ` · ${timeOfDay(note.date, note.createdAt)}`}{" "}
+                · {describeAgo(note.date)}
               </p>
               <h1 className="mt-3 font-serif text-4xl leading-tight text-ink sm:text-5xl">
                 <EntryTitle title={note.title} />

@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { PurposeBadges } from "@/components/PurposeBadges"
-import { dayKey } from "@/features/notes/lib/time"
+import { dayKey, timeOfDay } from "@/features/notes/lib/time"
 import { entryCategories } from "@/features/notes/lib/topics"
 import { EntryTitle } from "@/components/EntryTitle"
 
@@ -8,6 +8,7 @@ type Memory = {
   id: string
   title: string
   date: Date
+  createdAt: Date
   content: string
   ownCategory: string
   quotes: { id: string; quote: string; category: string }[]
@@ -128,6 +129,8 @@ export function OnThisDay({
                       day: "numeric",
                       year: "numeric",
                     })}
+                    {timeOfDay(note.date, note.createdAt) &&
+                      ` · ${timeOfDay(note.date, note.createdAt)}`}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="font-serif text-lg text-stone-100">

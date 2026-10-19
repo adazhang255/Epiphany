@@ -387,7 +387,9 @@ export const ModelName = {
   Note: 'Note',
   Quote: 'Quote',
   SavedChart: 'SavedChart',
-  Question: 'Question'
+  Question: 'Question',
+  Tracker: 'Tracker',
+  TrackerMark: 'TrackerMark'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -403,7 +405,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "note" | "quote" | "savedChart" | "question"
+    modelProps: "note" | "quote" | "savedChart" | "question" | "tracker" | "trackerMark"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -703,6 +705,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Tracker: {
+      payload: Prisma.$TrackerPayload<ExtArgs>
+      fields: Prisma.TrackerFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TrackerFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TrackerFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        findFirst: {
+          args: Prisma.TrackerFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TrackerFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        findMany: {
+          args: Prisma.TrackerFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>[]
+        }
+        create: {
+          args: Prisma.TrackerCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        createMany: {
+          args: Prisma.TrackerCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TrackerCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>[]
+        }
+        delete: {
+          args: Prisma.TrackerDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        update: {
+          args: Prisma.TrackerUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        deleteMany: {
+          args: Prisma.TrackerDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TrackerUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TrackerUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>[]
+        }
+        upsert: {
+          args: Prisma.TrackerUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerPayload>
+        }
+        aggregate: {
+          args: Prisma.TrackerAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTracker>
+        }
+        groupBy: {
+          args: Prisma.TrackerGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TrackerGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TrackerCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TrackerCountAggregateOutputType> | number
+        }
+      }
+    }
+    TrackerMark: {
+      payload: Prisma.$TrackerMarkPayload<ExtArgs>
+      fields: Prisma.TrackerMarkFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TrackerMarkFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TrackerMarkFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        findFirst: {
+          args: Prisma.TrackerMarkFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TrackerMarkFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        findMany: {
+          args: Prisma.TrackerMarkFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>[]
+        }
+        create: {
+          args: Prisma.TrackerMarkCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        createMany: {
+          args: Prisma.TrackerMarkCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TrackerMarkCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>[]
+        }
+        delete: {
+          args: Prisma.TrackerMarkDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        update: {
+          args: Prisma.TrackerMarkUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        deleteMany: {
+          args: Prisma.TrackerMarkDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TrackerMarkUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TrackerMarkUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>[]
+        }
+        upsert: {
+          args: Prisma.TrackerMarkUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TrackerMarkPayload>
+        }
+        aggregate: {
+          args: Prisma.TrackerMarkAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTrackerMark>
+        }
+        groupBy: {
+          args: Prisma.TrackerMarkGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TrackerMarkGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TrackerMarkCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TrackerMarkCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -802,6 +952,27 @@ export const QuestionScalarFieldEnum = {
 } as const
 
 export type QuestionScalarFieldEnum = (typeof QuestionScalarFieldEnum)[keyof typeof QuestionScalarFieldEnum]
+
+
+export const TrackerScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  legend: 'legend',
+  createdAt: 'createdAt'
+} as const
+
+export type TrackerScalarFieldEnum = (typeof TrackerScalarFieldEnum)[keyof typeof TrackerScalarFieldEnum]
+
+
+export const TrackerMarkScalarFieldEnum = {
+  id: 'id',
+  trackerId: 'trackerId',
+  day: 'day',
+  value: 'value',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TrackerMarkScalarFieldEnum = (typeof TrackerMarkScalarFieldEnum)[keyof typeof TrackerMarkScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -974,6 +1145,8 @@ export type GlobalOmitConfig = {
   quote?: Prisma.QuoteOmit
   savedChart?: Prisma.SavedChartOmit
   question?: Prisma.QuestionOmit
+  tracker?: Prisma.TrackerOmit
+  trackerMark?: Prisma.TrackerMarkOmit
 }
 
 /* Types for Logging */

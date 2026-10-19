@@ -130,6 +130,13 @@ const copy = path.join(work, "public.db")
 }
 const db = new Database(copy)
 db.exec("PRAGMA foreign_keys = OFF")
+// your day-by-day trackers are private: none of them in the copy
+for (const table of ["TrackerMark", "Tracker"]) {
+  const exists = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(table)
+  if (exists) db.exec(`DELETE FROM "${table}"`)
+}
 // Entries that stay private but have passages shared on their own: in the
 // copy they become just those passages (no title, none of the rest of the
 // text, no other highlights or questions), then count as public.
