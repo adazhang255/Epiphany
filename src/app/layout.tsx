@@ -3,6 +3,7 @@ import { Fraunces, Space_Mono, Work_Sans } from "next/font/google"
 import { SiteHeader } from "@/components/SiteHeader"
 import { AskBubble } from "@/components/AskBubble"
 import "./globals.css"
+import { SITE_AUTHOR, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site-mode"
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -23,9 +24,8 @@ const spaceMono = Space_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Reflections",
-  description:
-    "A journal that keeps the passages worth returning to, laid out across time.",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
 }
 
 export default function RootLayout({
@@ -45,7 +45,7 @@ export default function RootLayout({
         </main>
         <AskBubble />
         <footer className="pb-10 text-center text-sm text-stone-600">
-          Just think.
+          {SITE_AUTHOR ? `Written by ${SITE_AUTHOR} · ` : ""}Just think.
         </footer>
       </body>
     </html>

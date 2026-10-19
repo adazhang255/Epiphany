@@ -1,8 +1,8 @@
+"use client"
+
 import Link from "next/link"
 import { FindAnswersButton } from "@/components/FindAnswersButton"
 import { QuestionCard, type QuestionView } from "@/components/QuestionCard"
-import { prisma } from "@/lib/prisma"
-import { syncQuestions } from "@/features/questions/sync"
 
 const KINDS = [
   { id: "all", label: "All" },
@@ -14,10 +14,13 @@ const KINDS = [
 // Every question and wondering from every entry, newest first, with a
 // Questions / Wonderings filter. Shown on the timeline under "? Question".
 // Questions stay open; answers found in later entries hang below them.
-export async function QuestionsSection({
+// (The questions are loaded by the page: loadQuestionViews.)
+export function QuestionsSection({
+  questions,
   kind,
   kindHref,
 }: {
+  questions: QuestionView[]
   kind?: string
   kindHref: (kind: string | null) => string
 }) {
@@ -26,56 +29,15 @@ export async function QuestionsSection({
       ? kind
       : "all"
 
-  // every "?" and every "perhaps / maybe / I wonder" in every entry
-  await syncQuestions()
-
-  const questions = await prisma.question.findMany({
-    include: {
-      note: { select: { id: true, title: true, date: true } },
-      replies: {
-        select: {
-          id: true,
-          quote: true,
-          category: true,
-          note: { select: { id: true, title: true, date: true } },
-        },
-        orderBy: { note: { date: "asc" } },
-      },
-    },
-  })
-
-  const view = (q: (typeof questions)[number]): QuestionView => ({
-    id: q.id,
-    quote: q.text,
-    kind: q.kind.replace(/^not:/, "") as "question" | "wondering",
-    hidden: q.kind.startsWith("not:"),
-    noteId: q.note.id,
-    noteTitle: q.note.title,
-    date: q.note.date.toISOString(),
-    replies: q.replies.map((r) => ({
-      id: r.id,
-      quote: r.quote,
-      category: r.category,
-      noteId: r.note.id,
-      noteTitle: r.note.title,
-      date: r.note.date.toISOString(),
-    })),
-  })
-
   // ones you marked "not a question" only show under their own filter
-  const isHidden = (q: (typeof questions)[number]) => q.kind.startsWith("not:")
-  const shown = questions
-    .filter((q) =>
-      filter === "hidden"
-        ? isHidden(q)
-        : !isHidden(q) && (filter === "all" || q.kind === filter),
-    )
-    .sort((a, b) => b.note.date.getTime() - a.note.date.getTime())
+  const shown = questions.filter((q) =>
+    filter === "hidden"
+      ? q.hidden
+      : !q.hidden && (filter === "all" || q.kind === filter),
+  )
   const count = (k: string) =>
     questions.filter((q) =>
-      k === "hidden"
-        ? isHidden(q)
-        : !isHidden(q) && (k === "all" || q.kind === k),
+      k === "hidden" ? q.hidden : !q.hidden && (k === "all" || q.kind === k),
     ).length
   const withReplies = shown.filter((q) => q.replies.length > 0).length
 
@@ -123,7 +85,7 @@ export async function QuestionsSection({
       ) : (
         <ul className="space-y-3">
           {shown.map((q) => (
-            <QuestionCard key={q.id} question={view(q)} />
+            <QuestionCard key={q.id} question={q} />
           ))}
         </ul>
       )}

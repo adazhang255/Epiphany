@@ -1,5 +1,7 @@
 // Find natural entry breaks in a long document without any AI: headings and
-// lines that are just a date ("June 27, 2026", "2026-06-27", "6/27").
+// short lines that start with a date ("1/5 - Sunday 10:35 pm", "June 27,
+// 2026", "2026-06-27"). Every word of the document stays in an entry: the
+// date line itself is kept as the entry's first line.
 
 export type Segment = {
   heading: string | null // the heading or date line that opened this entry
@@ -23,8 +25,10 @@ const MONTHS = [
 ]
 const MONTH_RE =
   "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+// a weekday name, full or short ("Wednesday", "Wed", "Thurs.")
 const WEEKDAY_RE =
-  "(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\\.?,?\\s+)?"
+  "(sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?)\\.?"
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
 
 function iso(y: number, m: number, d: number) {
   const date = new Date(y, m - 1, d)
@@ -38,42 +42,160 @@ function monthIndex(name: string) {
   )
 }
 
-// A date written in a short line, or null. Years default to `fallbackYear`.
+// A date at the start of a short line, as written: month and day, the year
+// if given, and the weekday if one is written right before or after the date
+// ("Wed, Jan 1", "1/1 - Wednesday 10:35 pm", "1/11 - Saturday (ish)"). The
+// rest of the line can be anything short. null if the line isn't one.
+export type DateLine = {
+  m: number
+  d: number
+  year: number | null
+  weekday: string | null // "sun" … "sat"
+}
+
+// what may follow the date: nothing, or a space or punctuation (not "1/12x")
+const AFTER_DATE = /^(?:$|[\s,.:;()|*_–—-])/
+const shortWeekday = (name: string) => name.slice(0, 3).toLowerCase()
+
+export function readDateLine(line: string): DateLine | null {
+  let text = line
+    .replace(/^#+\s*/, "")
+    .replace(/^[*_]+/, "")
+    .trim()
+  if (!text || text.length > 60) return null
+  let weekday: string | null = null
+  const lead = text.match(new RegExp(`^${WEEKDAY_RE}\\s*[,–—:-]?\\s+`, "i"))
+  if (lead) {
+    weekday = shortWeekday(lead[1])
+    text = text.slice(lead[0].length)
+  }
+
+  const twoDigitYear = (y: string) => (y.length === 2 ? 2000 + +y : +y)
+  let found: {
+    m: number
+    d: number
+    year: number | null
+    length: number
+  } | null = null
+  let r = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (r) found = { year: +r[1], m: +r[2], d: +r[3], length: r[0].length }
+  if (!found) {
+    r = text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}|\d{2})(?!\d))?/)
+    if (r)
+      found = {
+        m: +r[1],
+        d: +r[2],
+        year: r[3] ? twoDigitYear(r[3]) : null,
+        length: r[0].length,
+      }
+  }
+  if (!found) {
+    r = text.match(
+      new RegExp(
+        `^${MONTH_RE}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`,
+        "i",
+      ),
+    )
+    if (r)
+      found = {
+        m: monthIndex(r[1]),
+        d: +r[2],
+        year: r[3] ? +r[3] : null,
+        length: r[0].length,
+      }
+  }
+  if (!found) {
+    r = text.match(
+      new RegExp(
+        `^(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RE}\\.?(?:,?\\s+(\\d{4}))?`,
+        "i",
+      ),
+    )
+    if (r)
+      found = {
+        m: monthIndex(r[2]),
+        d: +r[1],
+        year: r[3] ? +r[3] : null,
+        length: r[0].length,
+      }
+  }
+  if (!found || found.m < 1 || found.m > 12 || found.d < 1 || found.d > 31)
+    return null
+  const after = text.slice(found.length)
+  if (!AFTER_DATE.test(after)) return null
+  const trailing = after.match(
+    new RegExp(`^\\s*[,–—:|-]?\\s*\\(?${WEEKDAY_RE}(?![a-z])`, "i"),
+  )
+  if (trailing) weekday ??= shortWeekday(trailing[1])
+  return { m: found.m, d: found.d, year: found.year, weekday }
+}
+
+const TOMORROW = () => Date.now() + 86_400_000
+
+// The year for a month and day written without one: the latest year (from
+// `fallbackYear` back) whose date falls on the weekday written beside it
+// ("1/1 - Wednesday" → 2025), else `fallbackYear`; never a date to come
+// (a December entry written down in October is last year's).
+function yearFor(
+  m: number,
+  d: number,
+  weekday: string | null,
+  fallbackYear: number,
+) {
+  const fits = (y: number) => {
+    const date = new Date(y, m - 1, d)
+    return (
+      date.getMonth() === m - 1 &&
+      date.getTime() <= TOMORROW() &&
+      (!weekday || WEEKDAYS[date.getDay()] === weekday)
+    )
+  }
+  for (let y = fallbackYear; y > fallbackYear - 30; y--) if (fits(y)) return y
+  return fallbackYear
+}
+
+// One date line on its own, as YYYY-MM-DD (or null if it isn't one).
 export function parseDateLine(
   line: string,
   fallbackYear: number,
 ): string | null {
-  const text = line
-    .replace(/^#+\s*/, "")
-    .trim()
-    .replace(/[.:]$/, "")
-  if (text.length > 40) return null
-  let m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-  if (m) return iso(+m[1], +m[2], +m[3])
-  m = text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)
-  if (m) {
-    const year = m[3]
-      ? m[3].length === 2
-        ? 2000 + +m[3]
-        : +m[3]
-      : fallbackYear
-    return iso(year, +m[1], +m[2])
+  const r = readDateLine(line)
+  if (!r) return null
+  return iso(r.year ?? yearFor(r.m, r.d, r.weekday, fallbackYear), r.m, r.d)
+}
+
+// Years for a document's date lines, in order, worked out together: a
+// journal runs forward, so the year carries from one date to the next (one
+// written out sets it; going from late in the year back to early moves it
+// on). The starting year is the one whose dates fall on the most of the
+// weekdays written (so one slip, "3/8 - Friday", doesn't move a day to
+// another year), the latest if none say, and never one that puts a date in
+// the future.
+export function datesFor(
+  lines: DateLine[],
+  fallbackYear = new Date().getFullYear(),
+): (string | null)[] {
+  const run = (start: number) => {
+    let year = start
+    let prev: number | null = null
+    return lines.map((l) => {
+      if (l.year) year = l.year
+      else if (prev !== null && prev - l.m >= 6) year++
+      prev = l.m
+      return { y: l.year ?? year, l }
+    })
   }
-  m = text.match(
-    new RegExp(
-      `^${WEEKDAY_RE}${MONTH_RE}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?$`,
-      "i",
-    ),
-  )
-  if (m) return iso(m[3] ? +m[3] : fallbackYear, monthIndex(m[1]), +m[2])
-  m = text.match(
-    new RegExp(
-      `^${WEEKDAY_RE}(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RE}\\.?(?:,?\\s+(\\d{4}))?$`,
-      "i",
-    ),
-  )
-  if (m) return iso(m[3] ? +m[3] : fallbackYear, monthIndex(m[2]), +m[1])
-  return null
+  let best = { start: fallbackYear, score: -Infinity }
+  for (let start = fallbackYear; start > fallbackYear - 30; start--) {
+    let score = 0
+    for (const { y, l } of run(start)) {
+      const date = new Date(y, l.m - 1, l.d)
+      if (date.getTime() > TOMORROW()) score -= 1000
+      else if (l.weekday && WEEKDAYS[date.getDay()] === l.weekday) score++
+    }
+    if (score > best.score) best = { start, score }
+  }
+  return run(best.start).map(({ y, l }) => iso(y, l.m, l.d))
 }
 
 export function splitOnMarkers(
@@ -81,17 +203,22 @@ export function splitOnMarkers(
   fallbackYear = new Date().getFullYear(),
 ): Segment[] {
   const lines = text.split("\n")
-  const markers: { index: number; heading: string; date: string | null }[] = []
+  type Marker = { index: number; title: string | null; date: DateLine | null }
+  const markers: Marker[] = []
   lines.forEach((line, index) => {
-    const date = parseDateLine(line, fallbackYear)
+    const date = readDateLine(line)
     const isHeading = /^#+\s+\S/.test(line)
-    if (date || isHeading) {
-      markers.push({ index, heading: line.replace(/^#+\s*/, "").trim(), date })
-    }
+    if (date || isHeading)
+      markers.push({
+        index,
+        title: date ? null : line.replace(/^#+\s*/, "").trim(),
+        date,
+      })
   })
 
-  // A date heading directly followed by a title heading (or vice versa) is one break.
-  const merged: typeof markers = []
+  // A date line directly followed by a heading (or the other way round) is
+  // one break.
+  const merged: Marker[] = []
   for (const marker of markers) {
     const last = merged.at(-1)
     const between = last
@@ -100,44 +227,56 @@ export function splitOnMarkers(
           .join("")
           .trim()
       : "x"
-    if (last && between === "") {
+    if (last && between === "" && !(last.date && marker.date)) {
       last.date ??= marker.date
-      if (!marker.date) last.heading = marker.heading
+      last.title ??= marker.title
       continue
     }
     merged.push({ ...marker })
   }
 
+  const dated = merged.filter((m) => m.date)
+  const isoDates = datesFor(
+    dated.map((m) => m.date!),
+    fallbackYear,
+  )
+  const dateOf = new Map(dated.map((m, i) => [m, isoDates[i]]))
+
   if (merged.length < 2) {
     return [
       {
-        heading: merged[0]?.heading ?? null,
-        date: merged[0]?.date ?? null,
+        heading: merged[0]?.title ?? null,
+        date: (merged[0] && dateOf.get(merged[0])) ?? null,
         content: text.trim(),
       },
     ]
   }
 
-  const segments: Segment[] = []
-  const preamble = lines.slice(0, merged[0].index).join("\n").trim()
-  if (preamble.length > 40)
-    segments.push({ heading: null, date: null, content: preamble })
-  merged.forEach((marker, i) => {
-    const end = merged[i + 1]?.index ?? lines.length
-    const content = lines
-      .slice(marker.index + 1, end)
+  // the entry's own lines, from its date line or heading ("# " markup off)
+  const linesOf = (from: number, to: number) =>
+    lines
+      .slice(from, to)
+      .map((l, i) =>
+        markers.some((m) => m.index === from + i) ? l.replace(/^#+\s*/, "") : l,
+      )
       .join("\n")
       .trim()
-    if (content) {
-      segments.push({
-        heading:
-          marker.date && parseDateLine(marker.heading, fallbackYear)
-            ? null
-            : marker.heading,
-        date: marker.date,
-        content,
-      })
-    }
+
+  const segments: Segment[] = []
+  // text before the first date: its own entry, or (a line or two) part of
+  // the first one
+  const preamble = linesOf(0, merged[0].index)
+  const ownPreamble = preamble.length > 40
+  if (ownPreamble)
+    segments.push({ heading: null, date: null, content: preamble })
+  merged.forEach((marker, i) => {
+    const from = i === 0 && !ownPreamble ? 0 : marker.index
+    const to = merged[i + 1]?.index ?? lines.length
+    segments.push({
+      heading: marker.title,
+      date: dateOf.get(marker) ?? null,
+      content: linesOf(from, to),
+    })
   })
   return segments
 }

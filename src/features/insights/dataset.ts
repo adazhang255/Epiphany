@@ -6,7 +6,8 @@ import {
 } from "@/features/notes/lib/topics"
 import type { InsightNote } from "@/features/insights/compute"
 
-// Everything the charts need, small enough to send to the browser.
+// Everything the charts need, sent to the browser (the text too, so keyword
+// charts can count words there).
 export async function getInsightsDataset(): Promise<InsightNote[]> {
   const notes = await prisma.note.findMany({
     select: {
@@ -38,5 +39,7 @@ export async function getInsightsDataset(): Promise<InsightNote[]> {
     quotes: note.quotes.map((q) => ({
       category: highlightType(q.category),
     })),
+    // for keyword charts (counted in the browser, like everything else)
+    text: note.content,
   }))
 }

@@ -3,6 +3,7 @@ import {
   OLLAMA_HOST,
   OllamaUnavailableError,
 } from "@/features/notes/services/ollama.service"
+import { plainTitle } from "@/features/notes/lib/titles"
 
 const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL ?? "nomic-embed-text"
 
@@ -46,5 +47,5 @@ export async function embed(texts: string[]): Promise<number[][]> {
 // What gets embedded for a whole entry: its title and the start of its text
 // (long entries are cut so one embedding still captures the gist).
 export function noteText(title: string, content: string) {
-  return `${title}\n\n${content}`.slice(0, 4000)
+  return `${plainTitle(title)}\n\n${content}`.slice(0, 4000)
 }

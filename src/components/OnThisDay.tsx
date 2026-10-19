@@ -2,6 +2,7 @@ import Link from "next/link"
 import { PurposeBadges } from "@/components/PurposeBadges"
 import { dayKey } from "@/features/notes/lib/time"
 import { entryCategories } from "@/features/notes/lib/topics"
+import { EntryTitle } from "@/components/EntryTitle"
 
 type Memory = {
   id: string
@@ -130,7 +131,7 @@ export function OnThisDay({
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="font-serif text-lg text-stone-100">
-                      {note.title || "Untitled thought"}
+                      <EntryTitle title={note.title} />
                     </span>
                     <PurposeBadges
                       purposes={entryCategories(

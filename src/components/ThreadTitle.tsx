@@ -1,5 +1,6 @@
 "use client"
 
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
@@ -30,7 +31,8 @@ export function ThreadTitle({
   const ids = quoteIds.join(",")
 
   useEffect(() => {
-    if (known || quoteIds.length < 2) return
+    // (the public site has no model to ask: it shows the opening words)
+    if (known || quoteIds.length < 2 || PUBLIC_SITE) return
     let alive = true
     fetch(`/api/threads/title?ids=${encodeURIComponent(ids)}`)
       .then((r) => r.json())
@@ -138,7 +140,7 @@ export function ThreadTitle({
           </span>
         )}
       </span>
-      {thread && (
+      {thread && !PUBLIC_SITE && (
         <button
           type="button"
           onClick={() => {

@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { StatsTabs } from "@/components/TimelineTabs"
 import { ChartBuilder, type SavedChartView } from "@/components/ChartBuilder"
 import { getInsightsDataset } from "@/features/insights/dataset"
@@ -6,16 +7,15 @@ import { getSavedCharts } from "@/features/notes/services/notes.service"
 
 export const dynamic = "force-dynamic"
 
-export default async function CustomPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ edit?: string }>
-}) {
-  const { edit } = await searchParams
+export default async function CustomPage() {
   const [notes, charts] = await Promise.all([
     getInsightsDataset(),
     getSavedCharts(),
   ])
+
+  // a new order for the suggestions each visit (this page renders per visit)
+  // eslint-disable-next-line react-hooks/purity -- meant to differ each time
+  const seed = Math.random()
 
   const saved: SavedChartView[] = charts.flatMap((chart) => {
     try {
@@ -41,7 +41,9 @@ export default async function CustomPage({
             the ones worth keeping to the Stats overview.
           </p>
         </header>
-        <ChartBuilder notes={notes} saved={saved} editId={edit} />
+        <Suspense>
+          <ChartBuilder notes={notes} saved={saved} seed={seed} />
+        </Suspense>
       </div>
     </div>
   )

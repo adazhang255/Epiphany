@@ -1,11 +1,13 @@
 "use client"
 
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -36,6 +38,14 @@ import { DeleteEntryButton } from "@/components/DeleteEntryButton"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { NotebookTitle } from "@/components/NotebookTitle"
 import { OnTop } from "@/components/OnTop"
+import {
+  NEW_ENTRY_DRAFT,
+  confirmDiscard,
+  loadDraft,
+  useDraftAutosave,
+  useUnsavedWarning,
+  type NewEntryDraft,
+} from "@/components/useDraft"
 import type {
   NotebookFilter,
   NotebookNote,
@@ -132,7 +142,10 @@ function Page({
   // Editing happens on the entry's own page: clicking anywhere on this
   // page opens it there, ready to edit (unless you clicked a control or a
   // highlight, or were selecting text to mark it).
-  const editHref = `/notes/${note.id}?edit=1`
+  // (on the public site, a page just opens the entry)
+  const editHref = PUBLIC_SITE
+    ? `/notes/${note.id}`
+    : `/notes/${note.id}?edit=1`
   function open(e: React.MouseEvent) {
     if (
       (e.target as HTMLElement).closest(
@@ -147,7 +160,7 @@ function Page({
 
   // select words on the page to mark them
   function onMouseUp() {
-    if (!textRef.current || !page.current) return
+    if (PUBLIC_SITE || !textRef.current || !page.current) return
     const next = menuForSelection(textRef.current, page.current)
     if (next) setMenu(next)
   }
@@ -158,7 +171,7 @@ function Page({
       id={`n-${note.id}`}
       onClick={open}
       onMouseUp={onMouseUp}
-      title="Edit"
+      title={PUBLIC_SITE ? "Open" : "Edit"}
       className="notebook notebook-page group relative flex min-h-[400px] cursor-pointer flex-col rounded-sm pr-6 font-serif text-[18px] text-stone-200 transition hover:ring-1 hover:ring-ember/60"
       style={{
         backgroundColor: PAPERS[s % PAPERS.length],
@@ -194,9 +207,12 @@ function Page({
           <MarkedText
             text={note.content}
             highlights={highlights}
-            onMark={(el, id, category) =>
-              page.current &&
-              setMenu(menuForMark(el, page.current, id, category))
+            onMark={
+              PUBLIC_SITE
+                ? undefined
+                : (el, id, category) =>
+                    page.current &&
+                    setMenu(menuForMark(el, page.current, id, category))
             }
           />
         </div>
@@ -214,7 +230,7 @@ function Page({
               to wrap onto more lines, so they give way instead of the buttons */}
         <footer className="mt-auto">
           {/* Uncategorized view: give the entry a category right here */}
-          {sorting && (
+          {sorting && !PUBLIC_SITE && (
             <div className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 py-1">
               <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
                 {chosen.length ? "Category:" : "Give it a category:"}
@@ -245,12 +261,14 @@ function Page({
               </span>
               {timeOfDay(note)}
             </span>
-            <Link
-              href={editHref}
-              className="shrink-0 rounded-md border border-ember/50 bg-ember/10 px-2.5 py-1 font-mono text-xs uppercase tracking-widest text-ember transition hover:border-ember hover:bg-ember/20"
-            >
-              ✎ Edit
-            </Link>
+            {!PUBLIC_SITE && (
+              <Link
+                href={editHref}
+                className="shrink-0 rounded-md border border-ember/50 bg-ember/10 px-2.5 py-1 font-mono text-xs uppercase tracking-widest text-ember transition hover:border-ember hover:bg-ember/20"
+              >
+                ✎ Edit
+              </Link>
+            )}
             <DeleteEntryButton
               noteId={note.id}
               title={note.title}
@@ -350,6 +368,45 @@ function BlankPage({
   const copy = useRef<HTMLDivElement>(null)
   const nextKey = useRef(0)
 
+  // the unsaved page, kept as you write (clicking another page, filtering or
+  // leaving doesn't lose it) and brought back here or on Write
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reads browser storage, which the server can't */
+    const d = loadDraft<NewEntryDraft>(NEW_ENTRY_DRAFT)
+    if (d) {
+      setTitle(d.title ?? "")
+      setDate(d.date || todayIso())
+      setContent(d.content ?? "")
+      setCategories(d.categories ?? [])
+      setTone(d.tone ?? null)
+      setMarks(d.marks ?? [])
+      setRanges(d.ranges ?? {})
+      nextKey.current =
+        Math.max(
+          -1,
+          ...(d.marks ?? []).map((m) => Number(m.key.slice(2)) || 0),
+        ) + 1
+    }
+    setReady(true)
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [])
+  const draft = useMemo<NewEntryDraft | null>(
+    () =>
+      title.trim() || content.trim()
+        ? { title, date, content, categories, tone, marks, ranges }
+        : null,
+    [title, date, content, categories, tone, marks, ranges],
+  )
+  const clearDraft = useDraftAutosave(NEW_ENTRY_DRAFT, draft, ready)
+  useUnsavedWarning(draft !== null && !saving)
+
+  function discard() {
+    if (!confirmDiscard("this page")) return
+    clearDraft()
+    reset()
+  }
+
   // grow with the writing, so the text stays on the lines
   useEffect(() => {
     const el = box.current
@@ -437,7 +494,7 @@ function BlankPage({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: title.trim() || "A thought",
+        title: title.trim(),
         content,
         date,
       }),
@@ -447,6 +504,7 @@ function BlankPage({
       setSaving(false)
       return setError("Couldn't save. Is the server running?")
     }
+    clearDraft()
     // what you chose for it: category, tone, highlights
     const extra = {
       ...(categories.length ? { ownCategory: categories } : {}),
@@ -625,6 +683,16 @@ function BlankPage({
             `${items.length ? `${items.length} highlight${items.length === 1 ? "" : "s"} · ` : ""}⌘S to save · anything left blank is filled in for you`
           )}
         </span>
+        {draft && !saving && (
+          <button
+            type="button"
+            onClick={discard}
+            title="Your page is kept as you write, until you save it or discard it"
+            className="shrink-0 font-mono text-[11px] text-stone-500 underline decoration-dotted hover:text-stone-300"
+          >
+            discard
+          </button>
+        )}
         <button
           type="button"
           onClick={save}
@@ -639,57 +707,45 @@ function BlankPage({
 }
 
 // Endless scroll: the next pages load as you near the bottom.
+// pages added each time you reach the bottom
+const PAGE = 6
+
 export function NotebookFeed({
-  initial,
-  initialCursor,
+  notes: all,
   filter,
   custom = [],
   category,
   q,
 }: {
-  initial: NotebookNote[]
-  initialCursor: string | null
+  // the entries to show (already filtered and searched), in order
+  notes: NotebookNote[]
   filter: NotebookFilter
-  // the active category filter and topic search, carried into each next page
   category?: string
   q?: string
   // categories of your own (for giving uncategorized entries one)
   custom?: string[]
 }) {
-  const [notes, setNotes] = useState(initial)
-  const [cursor, setCursor] = useState(initialCursor)
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const router = useRouter()
+  // pages are added a few at a time as you scroll down
+  const [count, setCount] = useState(PAGE)
+  // entries deleted (or sorted away) here, gone at once
+  const [gone, setGone] = useState<Set<string>>(() => new Set())
+  const notes = all.filter((n) => !gone.has(n.id))
+  const more = count < notes.length
   const sentinel = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = sentinel.current
-    if (!el || !cursor || loading || failed) return
+    if (!el || !more) return
     const observer = new IntersectionObserver(
-      async ([entry]) => {
-        if (!entry.isIntersecting) return
-        observer.disconnect()
-        setLoading(true)
-        const res = await fetch(
-          `/api/notebook?${new URLSearchParams({
-            filter,
-            cursor,
-            ...(category ? { category } : {}),
-            ...(q ? { q } : {}),
-          })}`,
-        ).catch(() => null)
-        const data = res?.ok ? await res.json() : null
-        if (data) {
-          setNotes((all) => [...all, ...data.notes])
-          setCursor(data.nextCursor)
-        } else setFailed(true)
-        setLoading(false)
+      ([entry]) => {
+        if (entry.isIntersecting) setCount((c) => c + PAGE)
       },
       { rootMargin: "800px 0px" },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [cursor, loading, failed, filter, category, q])
+  }, [more])
 
   if (notes.length === 0 && filter === "uncategorized") {
     return (
@@ -702,27 +758,30 @@ export function NotebookFeed({
   // a blank page to write on, at the top of the whole notebook (not while
   // filtering or searching)
   const writable = filter === "all" && !category && !q
-  async function reload() {
-    const data = await fetch("/api/notebook")
-      .then((r) => r.json())
-      .catch(() => null)
-    if (!data) return
-    setNotes(data.notes)
-    setCursor(data.nextCursor)
-    setFailed(false)
+  // a page just written: load the notebook again, with it on top
+  function reload() {
+    router.refresh()
   }
-  const blank = writable ? <BlankPage onSaved={reload} custom={custom} /> : null
+  const blank =
+    writable && !PUBLIC_SITE ? (
+      <BlankPage onSaved={reload} custom={custom} />
+    ) : null
 
   if (notes.length === 0 && writable) return <div>{blank}</div>
 
   if (notes.length === 0) {
     return (
       <p className="text-stone-400">
-        The notebook is empty.{" "}
-        <Link href="/write" className="text-ember hover:underline">
-          Write the first page
-        </Link>
-        .
+        The notebook is empty.
+        {!PUBLIC_SITE && (
+          <>
+            {" "}
+            <Link href="/write" className="text-ember hover:underline">
+              Write the first page
+            </Link>
+            .
+          </>
+        )}
       </p>
     )
   }
@@ -731,15 +790,13 @@ export function NotebookFeed({
     <div>
       {blank && <div className="mb-12">{blank}</div>}
       <ol className="space-y-12">
-        {notes.map((note) => (
+        {notes.slice(0, count).map((note) => (
           <li key={note.id}>
             <Page
               note={note}
               sorting={filter === "uncategorized"}
               custom={custom}
-              onDeleted={() =>
-                setNotes((all) => all.filter((n) => n.id !== note.id))
-              }
+              onDeleted={() => setGone((g) => new Set(g).add(note.id))}
             />
           </li>
         ))}
@@ -748,21 +805,11 @@ export function NotebookFeed({
         ref={sentinel}
         className="py-12 text-center font-mono text-xs uppercase tracking-widest text-stone-600"
       >
-        {failed ? (
-          <button
-            type="button"
-            onClick={() => setFailed(false)}
-            className="text-rose-300/80 hover:text-rose-200"
-          >
-            Couldn&apos;t load more. Try again
-          </button>
-        ) : cursor ? (
-          "Turning the page…"
-        ) : filter === "uncategorized" ? (
-          "— that's all of them —"
-        ) : (
-          "— the first page —"
-        )}
+        {more
+          ? "Turning the page…"
+          : filter === "uncategorized"
+            ? "— that's all of them —"
+            : "— the first page —"}
       </div>
     </div>
   )

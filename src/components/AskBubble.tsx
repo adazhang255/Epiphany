@@ -1,11 +1,12 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 // Ask, as a small round button in the bottom-right corner of every page
 // (except Ask itself).
-export function AskBubble() {
+function AskBubbleInner() {
   const pathname = usePathname()
   if (pathname.startsWith("/ask")) return null
   return (
@@ -30,4 +31,9 @@ export function AskBubble() {
       </svg>
     </Link>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function AskBubble() {
+  return usePublicView() ? null : <AskBubbleInner />
 }

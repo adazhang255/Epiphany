@@ -8,7 +8,17 @@ import {
   getTimeline,
 } from "@/features/notes/services/notes.service"
 import { ClassifyButton } from "@/components/ClassifyButton"
-import { OnThisDay } from "@/components/OnThisDay"
+import { OnThisDayToday } from "@/components/OnThisDayToday"
+import { WriterProfile } from "@/components/WriterProfile"
+import { YearInReview } from "@/components/YearInReview"
+import { yearReviews } from "@/features/insights/yearReview"
+import { getThreads } from "@/features/threads/build"
+import {
+  profileJob,
+  readProfile,
+  writeProfile,
+} from "@/features/profile/profile"
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import { CategoryLanes } from "@/components/CategoryLanes"
 import { DayHeatmap, type HeatmapDay } from "@/components/DayHeatmap"
 import { getInsightsDataset } from "@/features/insights/dataset"
@@ -18,11 +28,17 @@ import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
 export const dynamic = "force-dynamic"
 
 export default async function StatsPage() {
-  const [notes, charts, memories] = await Promise.all([
+  const [notes, charts, memories, profile, threads] = await Promise.all([
     getInsightsDataset(),
     getSavedCharts(),
     getTimeline(),
+    // the public site's is written from its public entries as it's built
+    PUBLIC_SITE
+      ? writeProfile({ save: false }).catch(() => null)
+      : readProfile(),
+    getThreads("related").then((t) => t.threads),
   ])
+  const years = yearReviews(memories, threads)
   const pinned = charts.flatMap((chart) => {
     try {
       return [{ id: chart.id, spec: parseSpec(JSON.parse(chart.spec)) }]
@@ -150,8 +166,26 @@ export default async function StatsPage() {
           />
         </div>
 
-        <OnThisDay
-          notes={memories}
+        <WriterProfile
+          saved={profile}
+          job={PUBLIC_SITE ? null : profileJob()}
+        />
+
+        <YearInReview years={years} />
+
+        <OnThisDayToday
+          notes={memories.map((n) => ({
+            id: n.id,
+            title: n.title,
+            date: n.date,
+            content: n.content,
+            ownCategory: n.ownCategory,
+            quotes: n.quotes.map((q) => ({
+              id: q.id,
+              quote: q.quote,
+              category: q.category,
+            })),
+          }))}
           className=""
           moreHref="/on-this-day"
           showEmpty

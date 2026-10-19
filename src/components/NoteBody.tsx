@@ -1,7 +1,9 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
+import { useEntryParams } from "@/components/EntryParams"
 import {
   HighlightMenu,
   menuForMark,
@@ -29,18 +31,16 @@ function tint(hex: string, alpha: number) {
 export function NoteBody({
   noteId,
   parts,
-  activeId,
-  justSaved,
   custom = [],
 }: {
   noteId: string
   parts: BodyPart[]
-  activeId?: string
-  justSaved: boolean
   // categories of your own, offered alongside the built-in types
   custom?: string[]
 }) {
   const router = useRouter()
+  const readOnly = usePublicView()
+  const { activeId, justSaved } = useEntryParams()
   const box = useRef<HTMLDivElement>(null)
   const text = useRef<HTMLDivElement>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
@@ -52,6 +52,7 @@ export function NoteBody({
   const close = useCallback(() => setMenu(null), [])
 
   function onMouseUp() {
+    if (readOnly) return
     if (!text.current || !box.current) return
     const next = menuForSelection(text.current, box.current)
     if (next) setMenu(next)
@@ -72,8 +73,8 @@ export function NoteBody({
             <mark
               key={i}
               id={`h-${part.quote.id}`}
-              title={`${categoryGlyph(type)} ${type}${part.quote.manual ? " (yours)" : ""}: click to change`}
-              className={`note-mark scroll-mt-40 cursor-pointer ${fresh ? "note-mark-new" : ""}`}
+              title={`${categoryGlyph(type)} ${type}${part.quote.manual ? " (yours)" : ""}${readOnly ? "" : ": click to change"}`}
+              className={`note-mark scroll-mt-40 ${readOnly ? "" : "cursor-pointer"} ${fresh ? "note-mark-new" : ""}`}
               data-active={part.quote.id === activeId}
               style={
                 {
@@ -86,7 +87,7 @@ export function NoteBody({
                 } as React.CSSProperties
               }
               onClick={(e) => {
-                if (window.getSelection()?.toString()) return
+                if (readOnly || window.getSelection()?.toString()) return
                 setMenu(
                   menuForMark(
                     e.currentTarget,

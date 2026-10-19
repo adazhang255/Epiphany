@@ -103,7 +103,8 @@ export const QuoteScalarFieldEnum = {
   answerNoteId: 'answerNoteId',
   replyToId: 'replyToId',
   thread: 'thread',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  published: 'published'
 } as const
 
 export type QuoteScalarFieldEnum = (typeof QuoteScalarFieldEnum)[keyof typeof QuoteScalarFieldEnum]

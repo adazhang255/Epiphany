@@ -1,5 +1,6 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
@@ -8,7 +9,7 @@ import type { ThreadRef } from "@/features/threads/membership"
 // For a question's thread the answer is unlinked from the question; for
 // other threads the passage is left out of threads. Nothing in your entries
 // changes either way.
-export function RemoveFromThreadButton({
+function RemoveFromThreadButtonInner({
   item,
   thread,
 }: {
@@ -103,4 +104,11 @@ export function RemoveFromThreadButton({
       )}
     </span>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function RemoveFromThreadButton(
+  props: React.ComponentProps<typeof RemoveFromThreadButtonInner>,
+) {
+  return usePublicView() ? null : <RemoveFromThreadButtonInner {...props} />
 }

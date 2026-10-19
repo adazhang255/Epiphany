@@ -1,5 +1,6 @@
 "use client"
 
+import { BASE_PATH } from "@/lib/site-mode"
 import { useMemo, useState } from "react"
 import {
   categoryColor,
@@ -324,7 +325,7 @@ export function DayHeatmap({ days }: { days: Record<string, HeatmapDay> }) {
                       return day ? (
                         <a
                           key={d}
-                          href={`/#d-${k}`}
+                          href={`${BASE_PATH}/#d-${k}`}
                           aria-label={label}
                           onMouseEnter={(e) => show(e.currentTarget)}
                           onFocus={(e) => show(e.currentTarget)}

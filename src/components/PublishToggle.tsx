@@ -1,9 +1,10 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-export function PublishToggle({
+function PublishToggleInner({
   noteId,
   published,
 }: {
@@ -48,4 +49,11 @@ export function PublishToggle({
       </button>
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function PublishToggle(
+  props: React.ComponentProps<typeof PublishToggleInner>,
+) {
+  return usePublicView() ? null : <PublishToggleInner {...props} />
 }

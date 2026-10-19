@@ -1,5 +1,6 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -15,7 +16,7 @@ type Status = {
 // Look through later entries for answers to your questions, with the local
 // model, only when you press it (apart from highlights and tone). Answers
 // are added under each question as Insight replies; nothing is closed.
-export function FindAnswersButton() {
+function FindAnswersButtonInner() {
   const router = useRouter()
   const [status, setStatus] = useState<Status | null>(null)
   const [error, setError] = useState("")
@@ -79,4 +80,9 @@ export function FindAnswersButton() {
       {error && <span className="w-full text-xs text-rose-300">{error}</span>}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function FindAnswersButton() {
+  return usePublicView() ? null : <FindAnswersButtonInner />
 }

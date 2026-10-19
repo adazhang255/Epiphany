@@ -380,7 +380,7 @@ async function addEntries(args: Record<string, unknown>, ctx: ToolContext) {
       if (!content) return null
       const date = parseDay(entry.date) ?? new Date()
       return {
-        title: (str(entry.title) ?? "A thought").slice(0, 200),
+        title: (str(entry.title) ?? "").slice(0, 200),
         content: content.slice(0, 20_000),
         date: day(date),
       }

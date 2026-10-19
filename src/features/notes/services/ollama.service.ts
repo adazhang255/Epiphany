@@ -197,7 +197,16 @@ export async function chatJSON<T>(
   {
     temperature = 0.2,
     model = OLLAMA_MODEL,
-  }: { temperature?: number; model?: string } = {},
+    // room for a long answer (input + output, in tokens)
+    numCtx,
+    // most tokens to write (some models pad JSON with endless spaces)
+    numPredict,
+  }: {
+    temperature?: number
+    model?: string
+    numCtx?: number
+    numPredict?: number
+  } = {},
 ): Promise<Partial<T>> {
   assertLocalOllama()
   await unloadOtherModels(model || OLLAMA_MODEL)
@@ -214,7 +223,8 @@ export async function chatJSON<T>(
         format: schema,
         options: {
           temperature,
-          num_ctx: contextFor(system.length + user.length),
+          num_ctx: numCtx ?? contextFor(system.length + user.length),
+          ...(numPredict ? { num_predict: numPredict } : {}),
         },
         messages: [
           { role: "system", content: system },
@@ -236,10 +246,17 @@ export async function chatJSON<T>(
   }
 
   const payload = (await response.json()) as { message?: { content?: string } }
+  const content = payload.message?.content ?? "{}"
   try {
-    return JSON.parse(payload.message?.content ?? "{}")
+    return JSON.parse(content)
   } catch {
-    return {}
+    // small models sometimes close a string with a curly quote (”}); mend
+    // that one slip before giving up
+    try {
+      return JSON.parse(content.replace(/[“”](\s*[,}\]])/g, '"$1'))
+    } catch {
+      return {}
+    }
   }
 }
 
@@ -348,7 +365,17 @@ export async function* chatStream(
     model = OLLAMA_MODEL,
     temperature = 0.5,
     signal,
-  }: { model?: string; temperature?: number; signal?: AbortSignal } = {},
+    numPredict,
+    numCtx,
+  }: {
+    model?: string
+    temperature?: number
+    signal?: AbortSignal
+    // most tokens to write
+    numPredict?: number
+    // room for input + answer, in tokens (default: by the input's length)
+    numCtx?: number
+  } = {},
 ) {
   assertLocalOllama()
   await unloadOtherModels(model)
@@ -366,9 +393,10 @@ export async function* chatStream(
         keep_alive: "10m",
         options: {
           temperature,
-          num_ctx: contextFor(
-            messages.reduce((n, m) => n + m.content.length, 0),
-          ),
+          num_ctx:
+            numCtx ??
+            contextFor(messages.reduce((n, m) => n + m.content.length, 0)),
+          ...(numPredict ? { num_predict: numPredict } : {}),
         },
         messages,
       }),

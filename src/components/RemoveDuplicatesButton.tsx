@@ -1,7 +1,9 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { EntryTitle } from "@/components/EntryTitle"
 
 export type DuplicateCopy = {
   id: string
@@ -30,11 +32,7 @@ function entryDate(iso: string) {
 
 // Shown only when duplicates exist. You can compare each group's copies side
 // by side and pick which one stays; deleting asks for a second click.
-export function RemoveDuplicatesButton({
-  groups,
-}: {
-  groups: DuplicateGroup[]
-}) {
+function RemoveDuplicatesButtonInner({ groups }: { groups: DuplicateGroup[] }) {
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   const [comparing, setComparing] = useState<number | null>(null)
@@ -96,7 +94,7 @@ export function RemoveDuplicatesButton({
                     <span>
                       Keeps{" "}
                       <span className="text-stone-200">
-                        “{kept.title || "Untitled thought"}”
+                        “<EntryTitle title={kept.title} />”
                       </span>
                       , removes {group.copies.length - 1}{" "}
                       {group.copies.length === 2 ? "copy" : "copies"}
@@ -155,7 +153,7 @@ export function RemoveDuplicatesButton({
                                 </span>
                               </span>
                               <span className="font-serif text-base text-stone-100">
-                                {copy.title || "Untitled thought"}
+                                <EntryTitle title={copy.title} />
                               </span>
                               <span className="text-stone-500">
                                 Filed under {entryDate(copy.date)}
@@ -211,4 +209,11 @@ export function RemoveDuplicatesButton({
       {error && <p className="mt-2 text-xs text-rose-300/80">{error}</p>}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function RemoveDuplicatesButton(
+  props: React.ComponentProps<typeof RemoveDuplicatesButtonInner>,
+) {
+  return usePublicView() ? null : <RemoveDuplicatesButtonInner {...props} />
 }

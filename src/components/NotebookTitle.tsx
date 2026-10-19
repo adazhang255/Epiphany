@@ -1,10 +1,14 @@
 "use client"
 
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import { useState } from "react"
+import { EntryTitle } from "@/components/EntryTitle"
+import { plainTitle } from "@/features/notes/lib/titles"
 
 // A notebook page's title. ✎ (on hover) renames it right there, like a
 // thread's title: Enter or Save keeps it, Esc or Cancel leaves it as it was.
-// Stays on its one ruled line.
+// Stays on its one ruled line. A temporary title (written by the local AI)
+// is grey until you rename it.
 export function NotebookTitle({
   noteId,
   title: initial,
@@ -19,14 +23,15 @@ export function NotebookTitle({
   const [error, setError] = useState("")
 
   function start() {
-    setDraft(title)
+    setDraft(plainTitle(title))
     setError("")
     setEditing(true)
   }
 
   async function save() {
     const next = draft.trim()
-    if (next === title) return setEditing(false)
+    // unchanged (a temporary title stays temporary)
+    if (next === plainTitle(title).trim()) return setEditing(false)
     setSaving(true)
     setError("")
     const res = await fetch(`/api/notes/${noteId}`, {
@@ -91,17 +96,19 @@ export function NotebookTitle({
   return (
     <h2 className="group/title flex min-w-0 items-baseline gap-2 text-[22px] leading-[30px] text-ink">
       <span className="truncate group-hover:underline">
-        {title || "Untitled thought"}
+        <EntryTitle title={title} />
       </span>
-      <button
-        type="button"
-        onClick={start}
-        aria-label="Rename this entry"
-        title="Rename this entry"
-        className="shrink-0 font-sans text-sm text-stone-500 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100"
-      >
-        ✎
-      </button>
+      {!PUBLIC_SITE && (
+        <button
+          type="button"
+          onClick={start}
+          aria-label="Rename this entry"
+          title="Rename this entry"
+          className="shrink-0 font-sans text-sm text-stone-500 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100"
+        >
+          ✎
+        </button>
+      )}
     </h2>
   )
 }

@@ -1,5 +1,6 @@
 import { PublishManager, type PublishRow } from "@/components/PublishManager"
 import { PUBLISH_DIR, readSiteInfo } from "@/features/publish/buildSite"
+import { describeItem, siteDiff } from "../../../scripts/site-diff.mjs"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
@@ -12,19 +13,32 @@ export default async function PublishPage() {
         title: true,
         date: true,
         published: true,
-        _count: { select: { quotes: true } },
+        quotes: {
+          select: { id: true, quote: true, category: true, published: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
     readSiteInfo(),
   ])
 
+  // what pushing the last build would change online
+  const d = siteDiff(PUBLISH_DIR)
+  const diff = {
+    pushedBefore: d.pushedBefore as boolean,
+    added: d.added.map(describeItem) as string[],
+    changed: d.changed.map(describeItem) as string[],
+    removed: d.removed.map(describeItem) as string[],
+  }
+
   const rows: PublishRow[] = notes.map((n) => ({
     id: n.id,
     title: n.title,
     date: n.date.toISOString(),
-    highlights: n._count.quotes,
+    highlights: n.quotes.length,
     published: n.published,
+    passages: n.quotes,
   }))
 
   return (
@@ -38,10 +52,11 @@ export default async function PublishPage() {
         </h1>
         <p className="mt-3 max-w-2xl text-stone-400">
           Everything here is private by default. Choose entries to make public,
-          then build a static site with their timeline, highlights and threads.
+          then build your site: this same app, read-only, with only those
+          entries in it.
         </p>
       </header>
-      <PublishManager rows={rows} site={site} dir={PUBLISH_DIR} />
+      <PublishManager rows={rows} site={site} dir={PUBLISH_DIR} diff={diff} />
     </div>
   )
 }

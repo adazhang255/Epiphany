@@ -22,28 +22,42 @@ import {
   pickToolModel,
   type ToolChatMessage,
 } from "@/features/notes/services/ollama.service"
+import { chartReply, wantsChart } from "@/features/ask/chart"
+import { parseSpec, type ChartSpec } from "@/features/insights/spec"
+import { titleText } from "@/features/notes/lib/titles"
 
 type Message = { role: "user" | "assistant"; content: string }
 
-const SYSTEM_PROMPT = `You are a thoughtful companion helping someone reflect on their own private journal. You only know what is in the journal entries provided below.
-- Answer using ONLY these entries. Cite them inline like [1] or [2][3]. Never invent entries, dates or details.
+// How answers are written: the Ask page renders Markdown (GitHub-style).
+const FORMAT_RULES = `Format your reply in Markdown (it is rendered, so never put it in a code block):
+- Short paragraphs, separated by a blank line.
+- Several points, entries or moments: a bullet list ("- ") or, for an order in time, a numbered list ("1. "), each item on its own line, with a blank line before the list.
+- **Bold** only for a few key words. Put their own words in quotation marks.
+- No headings unless the answer has several distinct parts; then use "### ". No tables.
+- No HTML, no images, no links.`
+
+const SYSTEM_PROMPT = `You are the Ask assistant inside the person's private journal app. Your one job is to answer their questions about their own notes: the entries in their notebook, what they wrote, when, and how their thinking has changed. "My notes", "my notebook", "my journal", "my entries" and "my writing" all mean these entries. Questions like "what did I…", "when did I…", "have I ever…" are about the entries too. You only know what is in the journal entries provided below; you have no other knowledge of their life.
+- Answer using ONLY these entries. Cite them inline like [1] or [2][3], right after what each one says; cite only entries listed below, and only for what they actually say. Quote only words that appear in them. Never invent entries, quotes, dates or details.
 - If the entries don't answer the question, say so plainly and suggest what they could write about instead.
+- If the question isn't about their notes at all (general facts, coding, news, homework…), say in one sentence that you only answer questions about their notebook, then offer a related question you could answer from their entries.
 - Pay attention to dates: point out when their thinking changed over time.
 - Speak to them as "you". Be warm, honest and brief (under 170 words).
 - Then end with ONE open, gentle question that invites them to reflect further or keep writing. Ask it; don't answer it.
 - You are not a therapist: don't diagnose. If they seem to be in crisis or unsafe, kindly encourage them to reach out to someone they trust or a professional.
-- You can only read the journal. You cannot delete, edit, merge, tag or publish entries. If asked to, say briefly that you can't change entries yet, then help by pointing to the entries that seem to fit, so they can do it themselves. Never claim to have changed anything.`
+- You can only read the journal. You cannot delete, edit, merge, tag or publish entries. If asked to, say briefly that you can't change entries yet, then help by pointing to the entries that seem to fit, so they can do it themselves. Never claim to have changed anything.
+${FORMAT_RULES}`
 
 const TOOL_PROMPT = (
   today: string,
-) => `You help someone look after their private journal, using tools. Today is ${today}.
+) => `You are the Ask assistant inside the person's private journal app. You answer questions about their notes (the entries in their notebook) and help them look after those entries, using tools. "My notes", "my notebook" and "my journal" mean these entries. Today is ${today}.
 - To find entries, call findEntries. If they name an entry or a title (often in quotes), use titleContains with that title and nothing else. For short or nearly empty entries use maxWords (e.g. 5). Use textContains for exact words, after/before for dates, about for a theme.
 - Match their request narrowly: a delete must only include entries they described.
 - To delete entries: FIRST call findEntries with filters that match only those entries, THEN call deleteEntries (no ids needed: it proposes what findEntries just returned). This only PROPOSES the deletion; the person reviews and confirms it in the app. Never say anything was deleted.
 - To add entries: call addEntries with exactly the words the person gave you. Never invent their writing. This only PROPOSES it; they confirm in the app. Never say anything was saved.
 - Threads group passages from different days about one idea. To rename a thread or take a passage out of one: FIRST call findThreads (about = words from the thread's title or passages), THEN call renameThread or removeFromThread with the numbers it gave. These only PROPOSE the change; the person confirms in the app. Never say anything was renamed or removed.
 - You cannot edit, merge, tag or publish entries.
-- Finish with a short reply (under 80 words): what you found or proposed, entries by title and date. Never show ids. If you proposed a change, ask them to review it below and confirm if it's right.`
+- Finish with a short reply (under 80 words): what you found or proposed, entries by title and date. Never show ids. If you proposed a change, ask them to review it below and confirm if it's right.
+${FORMAT_RULES}`
 
 // Most tool calls one question may make before the model must answer.
 const MAX_STEPS = 4
@@ -51,11 +65,12 @@ const MAX_STEPS = 4
 function sourceBlock(
   sources: Awaited<ReturnType<typeof findSources>>["sources"],
 ) {
-  if (sources.length === 0) return "No journal entries matched this question."
+  if (sources.length === 0)
+    return "NONE. No journal entries matched this question. Say so in one sentence. Do not quote, cite ([1]…), date or describe any entry: there are none to use."
   return sources
     .map(
       (s) =>
-        `[${s.n}] "${s.title || "Untitled"}" (${new Date(s.date).toDateString()}${
+        `[${s.n}] "${titleText(s.title)}" (${new Date(s.date).toDateString()}${
           s.category ? `, ${s.category}` : ""
         })\n${s.content}`,
     )
@@ -69,8 +84,13 @@ function sourceBlock(
 // Nothing about the conversation is stored.
 export async function POST(req: Request) {
   let messages: Message[]
+  // the chart on screen in the conversation, if any (to change it)
+  let chartOnScreen: ChartSpec | null = null
   try {
     const body = await req.json()
+    try {
+      if (body.chart) chartOnScreen = parseSpec(body.chart)
+    } catch {}
     messages = (Array.isArray(body.messages) ? body.messages : [])
       .filter(
         (m: Message) =>
@@ -93,6 +113,15 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"))
       try {
         const latestText = messages.at(-1)!.content
+        // a chart, or a change to the one on screen
+        if (wantsChart(latestText, chartOnScreen !== null)) {
+          send({ status: "charting" })
+          const { chart, text } = await chartReply(latestText, chartOnScreen)
+          send({ chart })
+          send({ t: text })
+          send({ done: true })
+          return
+        }
         if (needsTools(latestText)) {
           const action = actionRequest(latestText)
           if (action) send({ action })

@@ -158,7 +158,7 @@ export async function POST(req: Request) {
       const [y, m, d] = e.date!.split("-").map(Number)
       return prisma.note.create({
         data: {
-          title: e.title || "A thought",
+          title: e.title || "",
           content: e.content,
           category: "",
           tags: "",

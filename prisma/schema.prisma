@@ -67,6 +67,8 @@ model Quote {
   // you took it out of threads
   thread       String?
   createdAt    DateTime  @default(now())
+  // shared on the public site by itself, without the rest of its entry
+  published    Boolean   @default(false)
 }
 
 // A chart pinned on the Custom page (built by hand or by asking the AI)

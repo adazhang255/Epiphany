@@ -1,5 +1,6 @@
 "use client"
 
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import { useSyncExternalStore } from "react"
 import { ANALYSIS_EVENT } from "@/components/AnalysisIndicator"
 
@@ -36,7 +37,8 @@ export function announceAnalysis() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
-  if (!started) {
+  // the public site never analyzes anything
+  if (!started && !PUBLIC_SITE) {
     started = true
     void check()
     window.addEventListener(ANALYSIS_EVENT, () => setTimeout(check, 300))

@@ -1,9 +1,12 @@
 "use client"
 
+import { SITE_TITLE } from "@/lib/site-mode"
+import { usePublicView } from "@/components/usePublicView"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { NOTEBOOK_TABS, STATS_TABS, TIMELINE_TABS } from "@/components/sections"
 import { AnalysisIndicator } from "@/components/AnalysisIndicator"
+import { ChartJobsIndicator } from "@/components/ChartJobsIndicator"
 
 // Places to read and explore; each has its own tabs inside.
 const sections = [
@@ -48,12 +51,13 @@ const tools = [
 
 export function SiteHeader() {
   const pathname = usePathname()
+  const readOnly = usePublicView()
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/5 bg-[#0f0f10]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-3 px-4 sm:px-6">
         <Link href="/" className="shrink-0 font-serif text-xl text-ink">
-          Reflections
+          {SITE_TITLE}
         </Link>
 
         <div className="no-scrollbar ml-auto flex min-w-0 items-center gap-3 overflow-x-auto">
@@ -96,10 +100,12 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <span aria-hidden className="h-5 w-px shrink-0 bg-white/10" />
+          {!readOnly && (
+            <span aria-hidden className="h-5 w-px shrink-0 bg-white/10" />
+          )}
 
           <nav aria-label="Tools" className="flex items-center gap-1.5">
-            {tools.map((tool) => {
+            {(readOnly ? [] : tools).map((tool) => {
               const active = pathname.startsWith(tool.href)
               return (
                 <Link
@@ -132,17 +138,20 @@ export function SiteHeader() {
         </div>
 
         <AnalysisIndicator />
+        <ChartJobsIndicator />
 
-        <Link
-          href="/write"
-          className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-            pathname.startsWith("/write")
-              ? "bg-white text-stone-900"
-              : "bg-ink text-stone-900 hover:bg-white"
-          }`}
-        >
-          Write
-        </Link>
+        {!readOnly && (
+          <Link
+            href="/write"
+            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              pathname.startsWith("/write")
+                ? "bg-white text-stone-900"
+                : "bg-ink text-stone-900 hover:bg-white"
+            }`}
+          >
+            Write
+          </Link>
+        )}
       </div>
     </header>
   )

@@ -1,11 +1,12 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 // Remove a highlight from the lists. The entry's text isn't touched: a
 // highlight is only a marker on it. Asks first, in a small box by the ×.
-export function RemoveHighlightButton({
+function RemoveHighlightButtonInner({
   id,
   className = "",
 }: {
@@ -82,4 +83,11 @@ export function RemoveHighlightButton({
       )}
     </span>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function RemoveHighlightButton(
+  props: React.ComponentProps<typeof RemoveHighlightButtonInner>,
+) {
+  return usePublicView() ? null : <RemoveHighlightButtonInner {...props} />
 }

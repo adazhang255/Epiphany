@@ -4,6 +4,8 @@ import { embed, noteText } from "@/features/notes/services/embeddings.service"
 import { saveAnalysis } from "@/features/notes/services/notes.service"
 import { analyzeNote } from "@/features/notes/services/ollama.service"
 import { scheduleToneFill } from "@/features/notes/services/tone-queue"
+import { scheduleTitleFill } from "@/features/notes/services/title-queue"
+import { isUntitled } from "@/features/notes/lib/titles"
 
 // Read one entry with the local model and store everything: highlights,
 // topics and embeddings. (Its category follows from its highlights.) Tone follows a few
@@ -32,6 +34,7 @@ export async function runAnalysis(noteId: string, model?: string) {
   })
   await syncQuestions([note.id])
   if (note.sentiment === null) scheduleToneFill()
+  if (isUntitled(note.title)) scheduleTitleFill()
 
   return { count: analysis.highlights.length }
 }

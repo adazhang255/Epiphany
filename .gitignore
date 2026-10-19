@@ -47,6 +47,8 @@ next-env.d.ts
 /dev.db
 /dev.backup.db
 /dev.db-journal
+*.db-wal
+*.db-shm
 .vscode/mcp.json
 /demo.db
 
@@ -54,3 +56,7 @@ next-env.d.ts
 /backups
 /.next-test/
 /.next-demo/
+/.public-build/
+
+# derived from your journal (e.g. the writer profile on Stats)
+/.cache/

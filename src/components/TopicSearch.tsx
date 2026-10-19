@@ -1,9 +1,11 @@
+"use client"
+
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 // Search by topic: type what you're looking for in plain words. Entries that
 // contain those words come first, then ones about it in meaning (found by
-// the local embedding model). Other filters on the page are kept. Plain
-// form, so it works without scripts.
+// the local embedding model). Other filters on the page are kept.
 export function TopicSearch({
   action,
   active,
@@ -16,9 +18,24 @@ export function TopicSearch({
   keep?: Record<string, string | undefined>
   clearHref: string
 }) {
+  const router = useRouter()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <form action={action} role="search" className="flex items-center gap-2">
+      <form
+        action={action}
+        role="search"
+        className="flex items-center gap-2"
+        // through the router, so it works on the public site's path too
+        onSubmit={(e) => {
+          e.preventDefault()
+          const params = new URLSearchParams()
+          for (const [k, v] of Object.entries(keep)) if (v) params.set(k, v)
+          const q = String(new FormData(e.currentTarget).get("q") ?? "").trim()
+          if (q) params.set("q", q)
+          const s = params.toString()
+          router.push(s ? `${action}?${s}` : action)
+        }}
+      >
         {Object.entries(keep).map(([k, v]) =>
           v ? <input key={k} type="hidden" name={k} value={v} /> : null,
         )}

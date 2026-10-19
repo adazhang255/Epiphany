@@ -37,6 +37,7 @@ export type QuoteMinAggregateOutputType = {
   replyToId: string | null
   thread: string | null
   createdAt: Date | null
+  published: boolean | null
 }
 
 export type QuoteMaxAggregateOutputType = {
@@ -52,6 +53,7 @@ export type QuoteMaxAggregateOutputType = {
   replyToId: string | null
   thread: string | null
   createdAt: Date | null
+  published: boolean | null
 }
 
 export type QuoteCountAggregateOutputType = {
@@ -67,6 +69,7 @@ export type QuoteCountAggregateOutputType = {
   replyToId: number
   thread: number
   createdAt: number
+  published: number
   _all: number
 }
 
@@ -84,6 +87,7 @@ export type QuoteMinAggregateInputType = {
   replyToId?: true
   thread?: true
   createdAt?: true
+  published?: true
 }
 
 export type QuoteMaxAggregateInputType = {
@@ -99,6 +103,7 @@ export type QuoteMaxAggregateInputType = {
   replyToId?: true
   thread?: true
   createdAt?: true
+  published?: true
 }
 
 export type QuoteCountAggregateInputType = {
@@ -114,6 +119,7 @@ export type QuoteCountAggregateInputType = {
   replyToId?: true
   thread?: true
   createdAt?: true
+  published?: true
   _all?: true
 }
 
@@ -202,6 +208,7 @@ export type QuoteGroupByOutputType = {
   replyToId: string | null
   thread: string | null
   createdAt: Date
+  published: boolean
   _count: QuoteCountAggregateOutputType | null
   _min: QuoteMinAggregateOutputType | null
   _max: QuoteMaxAggregateOutputType | null
@@ -238,6 +245,7 @@ export type QuoteWhereInput = {
   replyToId?: Prisma.StringNullableFilter<"Quote"> | string | null
   thread?: Prisma.StringNullableFilter<"Quote"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Quote"> | Date | string
+  published?: Prisma.BoolFilter<"Quote"> | boolean
   note?: Prisma.XOR<Prisma.NoteScalarRelationFilter, Prisma.NoteWhereInput>
   answerNote?: Prisma.XOR<Prisma.NoteNullableScalarRelationFilter, Prisma.NoteWhereInput> | null
   replyTo?: Prisma.XOR<Prisma.QuestionNullableScalarRelationFilter, Prisma.QuestionWhereInput> | null
@@ -256,6 +264,7 @@ export type QuoteOrderByWithRelationInput = {
   replyToId?: Prisma.SortOrderInput | Prisma.SortOrder
   thread?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  published?: Prisma.SortOrder
   note?: Prisma.NoteOrderByWithRelationInput
   answerNote?: Prisma.NoteOrderByWithRelationInput
   replyTo?: Prisma.QuestionOrderByWithRelationInput
@@ -277,6 +286,7 @@ export type QuoteWhereUniqueInput = Prisma.AtLeast<{
   replyToId?: Prisma.StringNullableFilter<"Quote"> | string | null
   thread?: Prisma.StringNullableFilter<"Quote"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Quote"> | Date | string
+  published?: Prisma.BoolFilter<"Quote"> | boolean
   note?: Prisma.XOR<Prisma.NoteScalarRelationFilter, Prisma.NoteWhereInput>
   answerNote?: Prisma.XOR<Prisma.NoteNullableScalarRelationFilter, Prisma.NoteWhereInput> | null
   replyTo?: Prisma.XOR<Prisma.QuestionNullableScalarRelationFilter, Prisma.QuestionWhereInput> | null
@@ -295,6 +305,7 @@ export type QuoteOrderByWithAggregationInput = {
   replyToId?: Prisma.SortOrderInput | Prisma.SortOrder
   thread?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  published?: Prisma.SortOrder
   _count?: Prisma.QuoteCountOrderByAggregateInput
   _max?: Prisma.QuoteMaxOrderByAggregateInput
   _min?: Prisma.QuoteMinOrderByAggregateInput
@@ -316,6 +327,7 @@ export type QuoteScalarWhereWithAggregatesInput = {
   replyToId?: Prisma.StringNullableWithAggregatesFilter<"Quote"> | string | null
   thread?: Prisma.StringNullableWithAggregatesFilter<"Quote"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Quote"> | Date | string
+  published?: Prisma.BoolWithAggregatesFilter<"Quote"> | boolean
 }
 
 export type QuoteCreateInput = {
@@ -328,6 +340,7 @@ export type QuoteCreateInput = {
   answeredAt?: Date | string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
   note: Prisma.NoteCreateNestedOneWithoutQuotesInput
   answerNote?: Prisma.NoteCreateNestedOneWithoutAnswersInput
   replyTo?: Prisma.QuestionCreateNestedOneWithoutRepliesInput
@@ -346,6 +359,7 @@ export type QuoteUncheckedCreateInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteUpdateInput = {
@@ -358,6 +372,7 @@ export type QuoteUpdateInput = {
   answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   note?: Prisma.NoteUpdateOneRequiredWithoutQuotesNestedInput
   answerNote?: Prisma.NoteUpdateOneWithoutAnswersNestedInput
   replyTo?: Prisma.QuestionUpdateOneWithoutRepliesNestedInput
@@ -376,6 +391,7 @@ export type QuoteUncheckedUpdateInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteCreateManyInput = {
@@ -391,6 +407,7 @@ export type QuoteCreateManyInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteUpdateManyMutationInput = {
@@ -403,6 +420,7 @@ export type QuoteUpdateManyMutationInput = {
   answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteUncheckedUpdateManyInput = {
@@ -418,6 +436,7 @@ export type QuoteUncheckedUpdateManyInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteListRelationFilter = {
@@ -443,6 +462,7 @@ export type QuoteCountOrderByAggregateInput = {
   replyToId?: Prisma.SortOrder
   thread?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  published?: Prisma.SortOrder
 }
 
 export type QuoteMaxOrderByAggregateInput = {
@@ -458,6 +478,7 @@ export type QuoteMaxOrderByAggregateInput = {
   replyToId?: Prisma.SortOrder
   thread?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  published?: Prisma.SortOrder
 }
 
 export type QuoteMinOrderByAggregateInput = {
@@ -473,6 +494,7 @@ export type QuoteMinOrderByAggregateInput = {
   replyToId?: Prisma.SortOrder
   thread?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  published?: Prisma.SortOrder
 }
 
 export type QuoteCreateNestedManyWithoutNoteInput = {
@@ -615,6 +637,7 @@ export type QuoteCreateWithoutNoteInput = {
   answeredAt?: Date | string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
   answerNote?: Prisma.NoteCreateNestedOneWithoutAnswersInput
   replyTo?: Prisma.QuestionCreateNestedOneWithoutRepliesInput
 }
@@ -631,6 +654,7 @@ export type QuoteUncheckedCreateWithoutNoteInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteCreateOrConnectWithoutNoteInput = {
@@ -652,6 +676,7 @@ export type QuoteCreateWithoutAnswerNoteInput = {
   answeredAt?: Date | string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
   note: Prisma.NoteCreateNestedOneWithoutQuotesInput
   replyTo?: Prisma.QuestionCreateNestedOneWithoutRepliesInput
 }
@@ -668,6 +693,7 @@ export type QuoteUncheckedCreateWithoutAnswerNoteInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteCreateOrConnectWithoutAnswerNoteInput = {
@@ -711,6 +737,7 @@ export type QuoteScalarWhereInput = {
   replyToId?: Prisma.StringNullableFilter<"Quote"> | string | null
   thread?: Prisma.StringNullableFilter<"Quote"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Quote"> | Date | string
+  published?: Prisma.BoolFilter<"Quote"> | boolean
 }
 
 export type QuoteUpsertWithWhereUniqueWithoutAnswerNoteInput = {
@@ -739,6 +766,7 @@ export type QuoteCreateWithoutReplyToInput = {
   answeredAt?: Date | string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
   note: Prisma.NoteCreateNestedOneWithoutQuotesInput
   answerNote?: Prisma.NoteCreateNestedOneWithoutAnswersInput
 }
@@ -755,6 +783,7 @@ export type QuoteUncheckedCreateWithoutReplyToInput = {
   answerNoteId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteCreateOrConnectWithoutReplyToInput = {
@@ -794,6 +823,7 @@ export type QuoteCreateManyNoteInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteCreateManyAnswerNoteInput = {
@@ -808,6 +838,7 @@ export type QuoteCreateManyAnswerNoteInput = {
   replyToId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteUpdateWithoutNoteInput = {
@@ -820,6 +851,7 @@ export type QuoteUpdateWithoutNoteInput = {
   answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   answerNote?: Prisma.NoteUpdateOneWithoutAnswersNestedInput
   replyTo?: Prisma.QuestionUpdateOneWithoutRepliesNestedInput
 }
@@ -836,6 +868,7 @@ export type QuoteUncheckedUpdateWithoutNoteInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteUncheckedUpdateManyWithoutNoteInput = {
@@ -850,6 +883,7 @@ export type QuoteUncheckedUpdateManyWithoutNoteInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteUpdateWithoutAnswerNoteInput = {
@@ -862,6 +896,7 @@ export type QuoteUpdateWithoutAnswerNoteInput = {
   answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   note?: Prisma.NoteUpdateOneRequiredWithoutQuotesNestedInput
   replyTo?: Prisma.QuestionUpdateOneWithoutRepliesNestedInput
 }
@@ -878,6 +913,7 @@ export type QuoteUncheckedUpdateWithoutAnswerNoteInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteUncheckedUpdateManyWithoutAnswerNoteInput = {
@@ -892,6 +928,7 @@ export type QuoteUncheckedUpdateManyWithoutAnswerNoteInput = {
   replyToId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteCreateManyReplyToInput = {
@@ -906,6 +943,7 @@ export type QuoteCreateManyReplyToInput = {
   answerNoteId?: string | null
   thread?: string | null
   createdAt?: Date | string
+  published?: boolean
 }
 
 export type QuoteUpdateWithoutReplyToInput = {
@@ -918,6 +956,7 @@ export type QuoteUpdateWithoutReplyToInput = {
   answeredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   note?: Prisma.NoteUpdateOneRequiredWithoutQuotesNestedInput
   answerNote?: Prisma.NoteUpdateOneWithoutAnswersNestedInput
 }
@@ -934,6 +973,7 @@ export type QuoteUncheckedUpdateWithoutReplyToInput = {
   answerNoteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 export type QuoteUncheckedUpdateManyWithoutReplyToInput = {
@@ -948,6 +988,7 @@ export type QuoteUncheckedUpdateManyWithoutReplyToInput = {
   answerNoteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   thread?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  published?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
 
@@ -965,6 +1006,7 @@ export type QuoteSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   replyToId?: boolean
   thread?: boolean
   createdAt?: boolean
+  published?: boolean
   note?: boolean | Prisma.NoteDefaultArgs<ExtArgs>
   answerNote?: boolean | Prisma.Quote$answerNoteArgs<ExtArgs>
   replyTo?: boolean | Prisma.Quote$replyToArgs<ExtArgs>
@@ -983,6 +1025,7 @@ export type QuoteSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   replyToId?: boolean
   thread?: boolean
   createdAt?: boolean
+  published?: boolean
   note?: boolean | Prisma.NoteDefaultArgs<ExtArgs>
   answerNote?: boolean | Prisma.Quote$answerNoteArgs<ExtArgs>
   replyTo?: boolean | Prisma.Quote$replyToArgs<ExtArgs>
@@ -1001,6 +1044,7 @@ export type QuoteSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   replyToId?: boolean
   thread?: boolean
   createdAt?: boolean
+  published?: boolean
   note?: boolean | Prisma.NoteDefaultArgs<ExtArgs>
   answerNote?: boolean | Prisma.Quote$answerNoteArgs<ExtArgs>
   replyTo?: boolean | Prisma.Quote$replyToArgs<ExtArgs>
@@ -1019,9 +1063,10 @@ export type QuoteSelectScalar = {
   replyToId?: boolean
   thread?: boolean
   createdAt?: boolean
+  published?: boolean
 }
 
-export type QuoteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "noteId" | "quote" | "category" | "tags" | "manual" | "embedding" | "answeredAt" | "answerNoteId" | "replyToId" | "thread" | "createdAt", ExtArgs["result"]["quote"]>
+export type QuoteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "noteId" | "quote" | "category" | "tags" | "manual" | "embedding" | "answeredAt" | "answerNoteId" | "replyToId" | "thread" | "createdAt" | "published", ExtArgs["result"]["quote"]>
 export type QuoteInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   note?: boolean | Prisma.NoteDefaultArgs<ExtArgs>
   answerNote?: boolean | Prisma.Quote$answerNoteArgs<ExtArgs>
@@ -1058,6 +1103,7 @@ export type $QuotePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     replyToId: string | null
     thread: string | null
     createdAt: Date
+    published: boolean
   }, ExtArgs["result"]["quote"]>
   composites: {}
 }
@@ -1496,6 +1542,7 @@ export interface QuoteFieldRefs {
   readonly replyToId: Prisma.FieldRef<"Quote", 'String'>
   readonly thread: Prisma.FieldRef<"Quote", 'String'>
   readonly createdAt: Prisma.FieldRef<"Quote", 'DateTime'>
+  readonly published: Prisma.FieldRef<"Quote", 'Boolean'>
 }
     
 

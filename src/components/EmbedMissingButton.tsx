@@ -1,10 +1,11 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 // Older highlights predate embeddings; this computes them all in one go.
-export function EmbedMissingButton({ count }: { count: number }) {
+function EmbedMissingButtonInner({ count }: { count: number }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState("")
@@ -45,4 +46,11 @@ export function EmbedMissingButton({ count }: { count: number }) {
       )}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function EmbedMissingButton(
+  props: React.ComponentProps<typeof EmbedMissingButtonInner>,
+) {
+  return usePublicView() ? null : <EmbedMissingButtonInner {...props} />
 }

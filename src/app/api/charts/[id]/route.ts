@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache"
 import { NextResponse } from "next/server"
 import { deleteSavedChart } from "@/features/notes/services/notes.service"
 
+// Unpin a chart.
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -12,6 +13,7 @@ export async function DELETE(
   } catch {
     return NextResponse.json({ error: "Chart not found" }, { status: 404 })
   }
+  revalidatePath("/stats")
   revalidatePath("/custom")
   return NextResponse.json({ ok: true })
 }

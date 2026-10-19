@@ -2,24 +2,23 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
+import { AnswerMarkdown, type SourceRef } from "@/components/AnswerMarkdown"
+import { Chart } from "@/components/Chart"
+import type { ChartReply } from "@/features/ask/chart"
+import { pinChart as pin } from "@/components/chartPins"
 import { ProposalCard, type ProposalStatus } from "@/components/ProposalCard"
 import type { FoundEntry, ProposalView } from "@/features/ask/tools"
-
-type SourceRef = {
-  n: number
-  id: string
-  title: string
-  date: string
-  category: string
-}
+import { EntryTitle } from "@/components/EntryTitle"
+import { titleText } from "@/features/notes/lib/titles"
 
 // what the server says it's doing right now
-type Status = "reading" | "thinking" | "proposing"
+type Status = "reading" | "thinking" | "proposing" | "charting"
 
 const STATUS_TEXT: Record<Status, string> = {
   reading: "Reading your entries…",
   thinking: "Thinking…",
   proposing: "Preparing a change for you to review…",
+  charting: "Making the chart…",
 }
 
 // `at`: when it was said (ms). Older saved turns may not have it.
@@ -37,6 +36,9 @@ type Turn =
       // tool mode: what the assistant looked up and proposed, in order
       steps?: Step[]
       status?: Status
+      // a chart made in the conversation (numbers computed from the entries);
+      // the next message can change it, and it can be pinned to Stats
+      chart?: ChartReply & { pinned?: boolean }
       at?: number
     }
   // output of a /command, shown like terminal output; never sent to the model
@@ -164,7 +166,7 @@ function FoundList({ entries }: { entries: FoundEntry[] }) {
             href={`/notes/${e.id}`}
             className="font-serif text-sm text-stone-300 hover:text-ink hover:underline"
           >
-            {e.title || "Untitled"}
+            <EntryTitle title={e.title} />
           </Link>
           <span className="font-mono text-stone-500">
             {e.date} · {e.words} {e.words === 1 ? "word" : "words"}
@@ -231,32 +233,6 @@ function shortDate(iso: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
-  })
-}
-
-// Turn "[2]" or "[4, 5]" citations in the answer into links to the entries.
-function withCitations(text: string, sources: SourceRef[]) {
-  return text.split(/(\[\d+(?:\s*,\s*\d+)*\])/g).map((part, i) => {
-    const numbers = part.match(/^\[([\d,\s]+)\]$/)?.[1]
-    const cited = numbers
-      ?.split(",")
-      .map((n) => sources.find((s) => s.n === Number(n.trim())))
-      .filter((s): s is SourceRef => Boolean(s))
-    if (!cited?.length) return <span key={i}>{part}</span>
-    return (
-      <span key={i}>
-        {cited.map((source) => (
-          <Link
-            key={source.n}
-            href={`/notes/${source.id}`}
-            title={`${source.title || "Untitled"} · ${shortDate(source.date)}`}
-            className="mx-0.5 rounded bg-ember/15 px-1 font-mono text-[11px] text-ember no-underline hover:bg-ember/25"
-          >
-            {source.n}
-          </Link>
-        ))}
-      </span>
-    )
   })
 }
 
@@ -333,6 +309,20 @@ export function AskJournal() {
   useEffect(() => {
     if (follow.current) end.current?.scrollIntoView({ block: "end" })
   }, [turns])
+
+  // pin a chart from the conversation to the Stats overview
+  async function pinChart(turnIndex: number) {
+    const turn = turns[turnIndex]
+    if (turn?.role !== "assistant" || !turn.chart) return
+    if (!(await pin(turn.chart.spec))) return
+    setTurns((all) =>
+      all.map((t, i) =>
+        i === turnIndex && t.role === "assistant" && t.chart
+          ? { ...t, chart: { ...t.chart, pinned: true } }
+          : t,
+      ),
+    )
+  }
 
   function setProposalStatus(
     turnIndex: number,
@@ -428,7 +418,7 @@ export function AskJournal() {
         data.notes as { title: string; date: string; content: string }[]
       ).map((n) => {
         const words = n.content.trim().split(/\s+/).filter(Boolean).length
-        return `${n.date.slice(0, 10)}  ${String(words).padStart(5)}w  ${n.title || "Untitled"}`
+        return `${n.date.slice(0, 10)}  ${String(words).padStart(5)}w  ${titleText(n.title)}`
       })
       return print(
         rows.join("\n") +
@@ -495,6 +485,11 @@ export function AskJournal() {
         signal: abort.signal,
         body: JSON.stringify({
           messages: history.map((t) => ({ role: t.role, content: t.content })),
+          // the latest chart in the conversation, for "make it a line" etc.
+          chart: turns.findLast(
+            (t): t is Extract<Turn, { role: "assistant" }> =>
+              t.role === "assistant" && Boolean(t.chart),
+          )?.chart?.spec,
         }),
       })
       if (!res.ok || !res.body) throw new Error("The server didn't answer.")
@@ -514,6 +509,7 @@ export function AskJournal() {
           const msg = JSON.parse(line)
           if (msg.status) update({ status: msg.status })
           if (msg.action) update({ action: msg.action })
+          if (msg.chart) update({ chart: msg.chart })
           if (msg.tool) addStep({ kind: "tool", ...msg.tool })
           if (msg.found) addStep({ kind: "found", entries: msg.found })
           if (msg.proposal)
@@ -642,13 +638,42 @@ export function AskJournal() {
                       </div>
                     ) : null,
                   )}
+                {turn.chart && (
+                  <div className="mb-4 rounded-2xl border border-white/[0.07] bg-panel p-4 font-sans">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <p className="min-w-0 flex-1 font-serif text-lg text-ink">
+                        {turn.chart.spec.title}
+                      </p>
+                      {turn.chart.pinned ? (
+                        <Link
+                          href="/stats#pinned"
+                          className="text-sm text-ember hover:underline"
+                        >
+                          ✓ Pinned to Stats
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => pinChart(i)}
+                          className="rounded-full border border-white/15 px-3 py-1 text-sm text-stone-200 transition hover:bg-white/5"
+                        >
+                          Pin to Stats
+                        </button>
+                      )}
+                    </div>
+                    <Chart
+                      data={turn.chart.data}
+                      kind={turn.chart.spec.chart}
+                      percent={turn.chart.spec.normalize}
+                    />
+                  </div>
+                )}
                 {turn.content ? (
-                  <p className="whitespace-pre-wrap font-serif text-[17px] leading-relaxed text-stone-200">
-                    {withCitations(turn.content, turn.sources)}
-                    {turn.pending && (
-                      <span className="ml-1 animate-pulse text-ember">▍</span>
-                    )}
-                  </p>
+                  <AnswerMarkdown
+                    text={turn.content}
+                    sources={turn.sources}
+                    pending={turn.pending}
+                  />
                 ) : turn.pending ? (
                   <p className="text-sm text-stone-500">
                     {turn.status ? STATUS_TEXT[turn.status] : "Starting…"}
@@ -684,7 +709,7 @@ export function AskJournal() {
                           className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-stone-400 transition hover:border-ember/40 hover:text-stone-200"
                         >
                           <span className="font-mono text-ember">{s.n}</span>
-                          {s.title || "Untitled"}
+                          <EntryTitle title={s.title} />
                           <span className="text-stone-600">
                             {shortDate(s.date)}
                           </span>

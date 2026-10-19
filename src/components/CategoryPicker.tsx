@@ -85,7 +85,10 @@ export function CategoryPicker({
                 e.preventDefault()
                 add()
               }
-              if (e.key === "Escape") setAdding(false)
+              if (e.key === "Escape") {
+                e.preventDefault() // closes this, not the editor around it
+                setAdding(false)
+              }
             }}
             autoFocus
             maxLength={24}

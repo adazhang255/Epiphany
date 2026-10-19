@@ -1,11 +1,12 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useState } from "react"
 import { announceAnalysis, useAnalysisBusy } from "@/components/useAnalysisBusy"
 
 // Queues entries that haven't been read yet for background analysis; the
 // header indicator shows progress, so you can leave this page.
-export function AnalyzeAllButton({ noteIds }: { noteIds: string[] }) {
+function AnalyzeAllButtonInner({ noteIds }: { noteIds: string[] }) {
   const [queued, setQueued] = useState(false)
   const [error, setError] = useState("")
   const busy = useAnalysisBusy()
@@ -54,4 +55,11 @@ export function AnalyzeAllButton({ noteIds }: { noteIds: string[] }) {
       )}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function AnalyzeAllButton(
+  props: React.ComponentProps<typeof AnalyzeAllButtonInner>,
+) {
+  return usePublicView() ? null : <AnalyzeAllButtonInner {...props} />
 }

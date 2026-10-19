@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // generated: the built public site, its working copy, and derived data
+    "public-site/**",
+    ".public-build/**",
+    ".cache/**",
   ]),
 ]);
 

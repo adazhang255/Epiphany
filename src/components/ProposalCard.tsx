@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { FoundEntry, ProposalView } from "@/features/ask/tools"
+import { EntryTitle } from "@/components/EntryTitle"
+import { titleText } from "@/features/notes/lib/titles"
 
 export type ProposalStatus =
   | { state: "pending" }
@@ -74,7 +76,7 @@ function ThreadProposalCard({
       state: "done",
       message: rename
         ? `Renamed the thread to “${change.to}”.`
-        : `Took that passage out of “${change.title}”. Your entry is unchanged.`,
+        : `Took that passage out of “${titleText(change.title)}”. Your entry is unchanged.`,
     })
   }
 
@@ -123,7 +125,7 @@ function ThreadProposalCard({
       ) : (
         <div className="mt-3 rounded-lg border border-white/10 px-3 py-2">
           <p className="font-mono text-[11px] text-stone-500">
-            {change.date} · from “{change.title}”
+            {change.date} · from “<EntryTitle title={change.title} />”
           </p>
           <p className="mt-1 font-serif text-sm text-stone-200">
             “{change.quote}”
@@ -355,7 +357,7 @@ function EntriesProposalCard({
                         target="_blank"
                         className="font-serif text-stone-100 hover:underline"
                       >
-                        {entry.title || "Untitled"}
+                        <EntryTitle title={entry.title} />
                       </Link>
                       <span className="font-mono text-[11px] text-stone-500">
                         {entry.date} · {entry.words}{" "}

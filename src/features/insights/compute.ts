@@ -7,7 +7,8 @@ import {
   topicColor,
   UNLABELED_COLOR,
 } from "@/features/notes/lib/topics"
-import type { ChartSpec } from "@/features/insights/spec"
+import { keywordAxis, type ChartSpec } from "@/features/insights/spec"
+import { countMentions, keyWords, topWords } from "@/features/insights/keywords"
 
 // Serializable per-note data the charts are computed from.
 export type InsightNote = {
@@ -19,6 +20,8 @@ export type InsightNote = {
   sentiment: number | null // -2..2
   topics: string[]
   quotes: { category: string }[]
+  // the entry's text, for keyword charts
+  text: string
 }
 
 export type ChartSeries = { name: string; color: string; values: number[] }
@@ -33,6 +36,17 @@ export type ChartData = {
 }
 
 const SINGLE_COLOR = "#e8c27a"
+// one per keyword, in the order they're given
+const KEYWORD_COLORS = [
+  "#e8c27a",
+  "#7aa2e8",
+  "#e87a8c",
+  "#7ae8b4",
+  "#b47ae8",
+  "#e8a07a",
+  "#7ad8e8",
+  "#c8e87a",
+]
 const UNLABELED = "Not analyzed"
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 // Fill empty periods only while the axis stays readable.
@@ -44,6 +58,8 @@ type Item = {
   purposes: string[]
   topics: string[]
   categories: string[]
+  // how often each keyword appears in the entry
+  hits: Record<string, number>
 }
 
 function pad(n: number) {
@@ -85,12 +101,35 @@ function timeLabel(key: string, unit: "day" | "week" | "month" | "year") {
   return unit === "week" ? `Wk of ${text}` : text
 }
 
-function toItems(spec: ChartSpec, notes: InsightNote[]): Item[] {
-  const { topic, category, purpose } = spec.filter
+// local YYYY-MM-DD of an entry's date
+const dayOf = (iso: string) => {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// entries passing the category, topic and date filters
+const filtered = (spec: ChartSpec, notes: InsightNote[]) =>
+  notes.filter(
+    (n) =>
+      (!spec.filter.topic || n.topics.includes(spec.filter.topic)) &&
+      (!spec.filter.purpose || n.purposes.includes(spec.filter.purpose)) &&
+      (!spec.filter.after || dayOf(n.date) >= spec.filter.after) &&
+      (!spec.filter.before || dayOf(n.date) <= spec.filter.before),
+  )
+
+function toItems(
+  spec: ChartSpec,
+  notes: InsightNote[],
+  keywords: string[],
+): Item[] {
+  const { category } = spec.filter
+  // keywords not counted or compared only narrow it to entries mentioning one
+  const onlyMentioning = keywords.length > 0 && !keywordAxis(spec)
   const items: Item[] = []
-  for (const note of notes) {
-    if (topic && !note.topics.includes(topic)) continue
-    if (purpose && !note.purposes.includes(purpose)) continue
+  for (const note of filtered(spec, notes)) {
+    const hits: Record<string, number> = {}
+    for (const k of keywords) hits[k] = countMentions(note.text, k)
+    if (onlyMentioning && !keywords.some((k) => hits[k] > 0)) continue
     const date = new Date(note.date)
 
     if (spec.measure === "highlights") {
@@ -102,6 +141,7 @@ function toItems(spec: ChartSpec, notes: InsightNote[]): Item[] {
           purposes: note.purposes,
           topics: note.topics,
           categories: [q.category],
+          hits,
         })
       }
       continue
@@ -115,9 +155,20 @@ function toItems(spec: ChartSpec, notes: InsightNote[]): Item[] {
       purposes: note.purposes,
       topics: note.topics,
       categories,
+      hits,
     })
   }
   return items
+}
+
+// What an item adds to a cell: for one keyword (grouped or split by
+// keyword), or for the item as a whole.
+function valueOf(item: Item, spec: ChartSpec, keyword?: string) {
+  if (spec.measure === "mentions")
+    return keyword
+      ? item.hits[keyword]
+      : Object.values(item.hits).reduce((a, b) => a + b, 0)
+  return keyword === undefined || item.hits[keyword] > 0 ? item.weight : 0
 }
 
 function keysFor(item: Item, by: ChartSpec["groupBy"]): string[] {
@@ -135,6 +186,8 @@ function keysFor(item: Item, by: ChartSpec["groupBy"]): string[] {
       return item.topics
     case "category":
       return item.categories
+    case "keyword":
+      return Object.keys(item.hits).filter((k) => item.hits[k] > 0)
   }
 }
 
@@ -142,9 +195,12 @@ function orderKeys(
   spec: ChartSpec,
   totals: Map<string, number>,
   notes: string[],
+  keywords: string[],
 ) {
   const present = [...totals.keys()]
   switch (spec.groupBy) {
+    case "keyword":
+      return keywords
     case "weekday":
       return WEEKDAYS
     case "purpose":
@@ -178,7 +234,23 @@ function orderKeys(
 
 export function computeChart(spec: ChartSpec, data: InsightNote[]): ChartData {
   const notes: string[] = []
-  const items = toItems(spec, data)
+  // keywords to count; none named: the most written words
+  let keywords = spec.keywords
+  if (!keywords.length && keywordAxis(spec)) {
+    const texts = filtered(spec, data).map((n) => n.text)
+    // the telling ones; in a very small journal, simply the most used
+    keywords = keyWords(texts)
+    if (keywords.length < 2) keywords = topWords(texts)
+    if (keywords.length)
+      notes.push(
+        `Key words picked automatically (written often, but not in every entry): ${keywords.join(", ")}. Name your own under Keywords.`,
+      )
+  }
+  if (spec.measure === "mentions")
+    notes.push(
+      "Counts every time a keyword appears (as a whole word, with its plural and -ed / -ing forms).",
+    )
+  const items = toItems(spec, data, keywords)
   const split = spec.splitBy
 
   // cells[x][series] = value
@@ -189,18 +261,26 @@ export function computeChart(spec: ChartSpec, data: InsightNote[]): ChartData {
   for (const item of items) {
     const xs = keysFor(item, spec.groupBy)
     if (xs.length === 0) {
-      unlabeled++
+      // (an entry without any of the keywords isn't missing a label)
+      if (spec.groupBy !== "keyword") unlabeled++
       continue
     }
     const ss = split === "none" ? ["value"] : keysFor(item, split)
+    if (!ss.length && split === "keyword") continue
     const seriesKeys = ss.length ? ss : [UNLABELED]
     for (const x of xs) {
+      const xKeyword = spec.groupBy === "keyword" ? x : undefined
       const row = cells.get(x) ?? new Map<string, number>()
       cells.set(x, row)
       for (const s of seriesKeys) {
-        row.set(s, (row.get(s) ?? 0) + item.weight)
+        const v = valueOf(
+          item,
+          spec,
+          xKeyword ?? (split === "keyword" ? s : undefined),
+        )
+        row.set(s, (row.get(s) ?? 0) + v)
       }
-      totals.set(x, (totals.get(x) ?? 0) + item.weight)
+      totals.set(x, (totals.get(x) ?? 0) + valueOf(item, spec, xKeyword))
     }
   }
 
@@ -213,7 +293,7 @@ export function computeChart(spec: ChartSpec, data: InsightNote[]): ChartData {
     notes.push("An item with several labels counts once under each.")
   }
 
-  const labels = orderKeys(spec, totals, notes)
+  const labels = orderKeys(spec, totals, notes, keywords)
 
   let seriesNames: string[]
   if (split === "none") seriesNames = ["value"]
@@ -221,11 +301,13 @@ export function computeChart(spec: ChartSpec, data: InsightNote[]): ChartData {
     const seen = new Set<string>()
     for (const row of cells.values()) for (const k of row.keys()) seen.add(k)
     const order: string[] =
-      split === "topic"
-        ? [...TOPIC_NAMES]
-        : split === "purpose"
-          ? [...PURPOSE_NAMES]
-          : [...HIGHLIGHT_CATEGORIES]
+      split === "keyword"
+        ? keywords
+        : split === "topic"
+          ? [...TOPIC_NAMES]
+          : split === "purpose"
+            ? [...PURPOSE_NAMES]
+            : [...HIGHLIGHT_CATEGORIES]
     seriesNames = [
       ...order.filter((o) => seen.has(o)),
       ...(seen.has(UNLABELED) ? [UNLABELED] : []),
@@ -239,18 +321,22 @@ export function computeChart(spec: ChartSpec, data: InsightNote[]): ChartData {
           ? "Words"
           : spec.measure === "highlights"
             ? "Highlights"
-            : "Entries"
+            : spec.measure === "mentions"
+              ? "Mentions"
+              : "Entries"
         : name,
     color:
       split === "none"
         ? SINGLE_COLOR
         : name === UNLABELED
           ? UNLABELED_COLOR
-          : split === "topic"
-            ? topicColor(name)
-            : split === "purpose"
-              ? (PURPOSE_COLORS[name] ?? UNLABELED_COLOR)
-              : (CATEGORY_COLORS[name] ?? UNLABELED_COLOR),
+          : split === "keyword"
+            ? KEYWORD_COLORS[keywords.indexOf(name) % KEYWORD_COLORS.length]
+            : split === "topic"
+              ? topicColor(name)
+              : split === "purpose"
+                ? (PURPOSE_COLORS[name] ?? UNLABELED_COLOR)
+                : (CATEGORY_COLORS[name] ?? UNLABELED_COLOR),
     values: labels.map((x) => cells.get(x)?.get(name) ?? 0),
   }))
 

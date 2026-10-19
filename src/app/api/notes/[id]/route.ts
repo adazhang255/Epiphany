@@ -7,6 +7,12 @@ import { embed } from "@/features/notes/services/embeddings.service"
 import { syncQuestions } from "@/features/questions/sync"
 import { enqueueAnalysis } from "@/features/notes/services/analysis-queue"
 import { scheduleToneFill } from "@/features/notes/services/tone-queue"
+import { scheduleTitleFill } from "@/features/notes/services/title-queue"
+import {
+  isAutoTitle,
+  isUntitled,
+  plainTitle,
+} from "@/features/notes/lib/titles"
 import {
   deleteWithBackup,
   loadForBackup,
@@ -62,7 +68,23 @@ export async function PATCH(
   if (Array.isArray(body.purposes)) {
     data.category = parsePurposes(body.purposes.map(String).join(",")).join(",")
   }
-  if (typeof body.title === "string") data.title = body.title.trim()
+  if (typeof body.title === "string") {
+    const title = body.title.trim()
+    const before = await prisma.note.findUnique({
+      where: { id },
+      select: { title: true },
+    })
+    // the AI's temporary title sent back unchanged stays temporary (grey);
+    // any other title is yours
+    data.title =
+      before &&
+      isAutoTitle(before.title) &&
+      title === plainTitle(before.title).trim()
+        ? before.title
+        : plainTitle(title)
+    // cleared: it gets a temporary one again
+    if (isUntitled(data.title as string)) scheduleTitleFill()
+  }
   // tags: a string adds to your own; a list is the entry's whole set as you
   // reviewed it (the AI's suggestions included), so it replaces both
   const cleanTags = (list: unknown[]) =>

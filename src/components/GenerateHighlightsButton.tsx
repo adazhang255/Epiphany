@@ -1,10 +1,11 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { announceAnalysis, useAnalysisBusy } from "@/components/useAnalysisBusy"
 
-export function GenerateHighlightsButton({
+function GenerateHighlightsButtonInner({
   noteId,
   hasHighlights,
 }: {
@@ -72,4 +73,11 @@ export function GenerateHighlightsButton({
       )}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function GenerateHighlightsButton(
+  props: React.ComponentProps<typeof GenerateHighlightsButtonInner>,
+) {
+  return usePublicView() ? null : <GenerateHighlightsButtonInner {...props} />
 }

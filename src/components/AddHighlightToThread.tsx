@@ -1,10 +1,12 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { HighlightKind } from "@/components/HighlightKind"
 import { holdThread } from "@/components/KeepThreadInPlace"
 import type { ThreadRef } from "@/features/threads/membership"
+import { EntryTitle } from "@/components/EntryTitle"
 
 type Found = {
   id: string
@@ -16,7 +18,7 @@ type Found = {
 
 // "+ Add a highlight" on a thread: search your highlights by their words and
 // pick one to add to this thread.
-export function AddHighlightToThread({ thread }: { thread: ThreadRef }) {
+function AddHighlightToThreadInner({ thread }: { thread: ThreadRef }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState("")
@@ -115,7 +117,7 @@ export function AddHighlightToThread({ thread }: { thread: ThreadRef }) {
                   <span className="flex items-center gap-2 text-stone-500">
                     <HighlightKind category={h.category} />
                     <span className="truncate">
-                      {h.noteTitle || "Untitled"}
+                      <EntryTitle title={h.noteTitle} />
                     </span>
                   </span>
                   <span className="mt-0.5 line-clamp-2 block font-serif text-sm leading-snug text-stone-200">
@@ -132,4 +134,11 @@ export function AddHighlightToThread({ thread }: { thread: ThreadRef }) {
       )}
     </span>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function AddHighlightToThread(
+  props: React.ComponentProps<typeof AddHighlightToThreadInner>,
+) {
+  return usePublicView() ? null : <AddHighlightToThreadInner {...props} />
 }

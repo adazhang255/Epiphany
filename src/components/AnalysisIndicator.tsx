@@ -1,9 +1,11 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { Walker } from "@/components/DraggableTimeline"
+import { titleText } from "@/features/notes/lib/titles"
 
 type Status = {
   pending: { id: string; title: string }[]
@@ -22,7 +24,7 @@ export const ANALYSIS_EVENT = "analysis:queued"
 // A small header indicator for highlights being found in the background.
 // Polls only while something is pending, then shows "ready" for a moment and
 // refreshes the current page so the new highlights appear.
-export function AnalysisIndicator() {
+function AnalysisIndicatorInner() {
   const router = useRouter()
   const [status, setStatus] = useState<Status | null>(null)
   const [ready, setReady] = useState<Status["finished"][number] | null>(null)
@@ -66,7 +68,7 @@ export function AnalysisIndicator() {
       <Link
         href={`/notes/${first.id}`}
         role="status"
-        title={`Finding highlights in “${first.title || "Untitled"}”`}
+        title={`Finding highlights in “${titleText(first.title)}”`}
         className="flex shrink-0 items-center gap-1 rounded-full border border-ember/30 bg-ember/[0.06] py-0.5 pl-1 pr-3 text-xs text-stone-300"
       >
         <span className="-my-1 scale-[0.7]">
@@ -94,4 +96,9 @@ export function AnalysisIndicator() {
     )
   }
   return null
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function AnalysisIndicator() {
+  return usePublicView() ? null : <AnalysisIndicatorInner />
 }

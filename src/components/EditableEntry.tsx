@@ -1,11 +1,21 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { plainTitle } from "@/features/notes/lib/titles"
+import {
+  confirmDiscard,
+  entryDraftKey,
+  loadDraft,
+  useDraftAutosave,
+  useUnsavedWarning,
+} from "@/components/useDraft"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { OnTop } from "@/components/OnTop"
 import { DeleteEntryButton } from "@/components/DeleteEntryButton"
 import { HighlightKind } from "@/components/HighlightKind"
+import { useEntryParams } from "@/components/EntryParams"
 import { findQuote, snapToWords } from "@/features/notes/lib/findQuote"
 import {
   caretEnd,
@@ -52,29 +62,44 @@ function locate(text: string, highlights: Note["highlights"]) {
 // re-reads changed text: questions at once, highlights in the background.
 // What the form starts from: the entry as saved, with every tag it has
 // (yours and the AI's) laid out to edit.
+// (a temporary title is edited as plain text; saved unchanged, it stays
+// temporary)
 const draftOf = (note: Note) => ({
-  title: note.title,
+  title: plainTitle(note.title),
   content: note.content,
   date: isoDay(note.date),
   ownCategory: splitList(note.ownCategory),
 })
 
+// unsaved changes to an entry, kept in the browser until saved or discarded
+type EntryDraft = {
+  base: string // the entry's text when you started editing
+  draft: ReturnType<typeof draftOf>
+  ranges: ReturnType<typeof locate>
+  added: { key: string; category: string }[]
+  types: Record<string, string>
+  removedIds: string[]
+  categoryTouched: boolean
+  tone: number | null
+  toneTouched: boolean
+}
+
 export function EditableEntry({
   note,
   custom,
-  startEditing = false,
   children,
 }: {
   note: Note
   // categories of your own, offered alongside the built-in ones
   custom: string[]
-  // open straight into editing (e.g. arriving from the notebook)
-  startEditing?: boolean
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const readOnly = usePublicView()
   const box = useRef<HTMLTextAreaElement>(null)
-  const [editing, setEditing] = useState(startEditing)
+  // ?edit=1 opens straight into editing (e.g. arriving from the notebook)
+  const { edit } = useEntryParams()
+  const [editing, setEditing] = useState(edit)
   const [draft, setDraft] = useState(() => draftOf(note))
   // where each highlight is in the text being edited (moves with your edits)
   const [ranges, setRanges] = useState(() =>
@@ -110,7 +135,47 @@ export function EditableEntry({
   const [clickedInto, setClickedInto] = useState(false)
   const [anchor, setAnchor] = useState<PickerSpot | null>(null)
 
+  // unsaved changes from before (you left the page while editing), brought
+  // back when you edit again; arriving with ?edit=1 picks them up at once
+  const draftKey = entryDraftKey(note.id)
+  const [ready, setReady] = useState(false)
+  const [kept, setKept] = useState<EntryDraft | null>(null)
+  // the saved entry changed after these edits began (in another tab)
+  const [stale, setStale] = useState(false)
+  function apply(d: EntryDraft) {
+    setDraft(d.draft)
+    setRanges(d.ranges)
+    setAdded(d.added)
+    setTypes(d.types)
+    setRemovedIds(d.removedIds)
+    setCategoryTouched(d.categoryTouched)
+    setTone(d.tone)
+    setToneTouched(d.toneTouched)
+    setStale(d.base !== note.content)
+    nextKey.current =
+      Math.max(-1, ...d.added.map((a) => Number(a.key.slice(2)) || 0)) + 1
+  }
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reads browser storage, which the server can't */
+    const d = loadDraft<EntryDraft>(draftKey)
+    if (d && edit) apply(d)
+    else setKept(d)
+    setReady(true)
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // only on arrival
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function start() {
+    const d = loadDraft<EntryDraft>(draftKey)
+    setKept(null)
+    setTypeOpen(null)
+    setError("")
+    setMarking("")
+    setCaret(null)
+    setEditing(true)
+    if (d) return apply(d)
+    setStale(false)
     setDraft(draftOf(note))
     setRanges(locate(note.content, note.highlights))
     setTypes({})
@@ -124,6 +189,13 @@ export function EditableEntry({
     setAdded([])
     setCaret(null)
     setEditing(true)
+  }
+
+  // Cancel or esc: changes go only if you say so
+  function cancel() {
+    if (unsaved && !confirmDiscard("your changes to this entry")) return
+    clearDraft()
+    stop()
   }
 
   // leaving edit mode also drops ?edit=1 from the address
@@ -168,6 +240,7 @@ export function EditableEntry({
       setError(data?.error ?? "Couldn't save. Is the server running?")
       return
     }
+    clearDraft()
     stop()
     router.refresh()
   }
@@ -262,6 +335,46 @@ export function EditableEntry({
         (types[h.id] !== undefined && types[h.id] !== h.category)),
   )
 
+  // anything changed that saving would keep
+  const unsaved =
+    editing &&
+    (JSON.stringify(draft) !== JSON.stringify(draftOf(note)) ||
+      removed.length > 0 ||
+      edited.length > 0 ||
+      added.length > 0 ||
+      (toneTouched && tone !== note.sentiment))
+  const keep = useMemo<EntryDraft | null>(
+    () =>
+      unsaved
+        ? {
+            base: note.content,
+            draft,
+            ranges,
+            added,
+            types,
+            removedIds,
+            categoryTouched,
+            tone,
+            toneTouched,
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      unsaved,
+      draft,
+      ranges,
+      added,
+      types,
+      removedIds,
+      categoryTouched,
+      tone,
+      toneTouched,
+    ],
+  )
+  // only while editing: a draft kept from before stays until you edit again
+  const clearDraft = useDraftAutosave(draftKey, keep, ready && editing)
+  useUnsavedWarning(unsaved && !saving)
+
   // the box grows with its text (no inner scrolling), so the tinted copy
   // behind it always lines up
   useLayoutEffect(() => {
@@ -323,15 +436,18 @@ export function EditableEntry({
     setMarking(`Changed to ${category}. Saved when you press Save.`)
   }
 
+  // the public site only shows the entry
+  if (readOnly) return <>{children}</>
   if (!editing) {
     return (
       <div className="relative">
         <button
           type="button"
           onClick={start}
+          title={kept ? "You have unsaved changes to this entry" : undefined}
           className="absolute right-0 top-0 rounded-full bg-ember px-4 py-1.5 font-mono text-xs font-bold uppercase tracking-widest text-stone-950 shadow-lg shadow-ember/10 transition hover:bg-[#f0d08f]"
         >
-          ✎ Edit entry
+          {kept ? "✎ Continue editing (unsaved)" : "✎ Edit entry"}
         </button>
         {children}
       </div>
@@ -350,7 +466,11 @@ export function EditableEntry({
         save()
       }}
       onKeyDown={(e) => {
-        if (e.key === "Escape") stop()
+        // (not when esc closed something inside, like a picker)
+        if (e.key === "Escape" && !e.defaultPrevented) {
+          e.preventDefault()
+          cancel()
+        }
         if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
           e.preventDefault()
           save()
@@ -366,7 +486,7 @@ export function EditableEntry({
         <span className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={stop}
+            onClick={cancel}
             className="rounded-full border border-white/15 px-4 py-1.5 text-sm text-stone-300 hover:bg-white/5"
           >
             Cancel
@@ -728,7 +848,7 @@ export function EditableEntry({
           {error ? (
             <span className="text-rose-300">{error}</span>
           ) : (
-            "⌘S save · esc cancel. Highlights follow your edits; ones you change are kept as yours."
+            `${stale ? "Unsaved changes brought back; the saved entry has changed since, and saving replaces it. " : ""}⌘S save · esc cancel · changes are kept until you save. Highlights follow your edits; ones you change are kept as yours.`
           )}
         </p>
         <span className="ml-auto flex flex-wrap items-center gap-2">

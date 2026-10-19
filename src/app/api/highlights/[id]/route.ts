@@ -7,6 +7,7 @@ import {
   noteHighlights,
 } from "@/features/notes/services/highlights"
 
+// Change a highlight's type: { category }, or share it alone: { published }.
 // Change a highlight's type: { category }, a built-in type or a name of your
 // own. Once you've chosen it, it counts as yours and survives regenerating
 // highlights. Or { replyTo: null }: it doesn't answer the question it was
@@ -17,6 +18,23 @@ export async function PATCH(
 ) {
   const { id } = await params
   const body = await req.json().catch(() => ({}))
+  // { published: true/false }: share this passage on its own on the public
+  // site (its entry stays private unless it's published too)
+  if (body && typeof body.published === "boolean") {
+    try {
+      await prisma.quote.update({
+        where: { id },
+        data: { published: body.published },
+      })
+    } catch {
+      return NextResponse.json(
+        { error: "Highlight not found" },
+        { status: 404 },
+      )
+    }
+    revalidatePath("/publish")
+    return NextResponse.json({ ok: true })
+  }
   if (body && "replyTo" in body && body.replyTo === null) {
     try {
       await prisma.quote.update({

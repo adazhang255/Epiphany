@@ -1,12 +1,13 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useState } from "react"
 import { announceAnalysis, useAnalysisBusy } from "@/components/useAnalysisBusy"
 
 // Re-read every entry for highlights with the local model (Ollama, on this
 // computer), after asking. Highlights the AI made are replaced; ones you
 // marked yourself are kept. Progress shows in the header.
-export function ReanalyzeAllButton({ noteIds }: { noteIds: string[] }) {
+function ReanalyzeAllButtonInner({ noteIds }: { noteIds: string[] }) {
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState("")
   // greyed out while any highlights are being found (this run or another)
@@ -78,4 +79,11 @@ export function ReanalyzeAllButton({ noteIds }: { noteIds: string[] }) {
       {error && <span className="w-full text-xs text-rose-300">{error}</span>}
     </div>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function ReanalyzeAllButton(
+  props: React.ComponentProps<typeof ReanalyzeAllButtonInner>,
+) {
+  return usePublicView() ? null : <ReanalyzeAllButtonInner {...props} />
 }

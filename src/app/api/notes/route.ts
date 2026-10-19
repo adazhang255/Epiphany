@@ -58,7 +58,8 @@ export async function POST(req: Request) {
     }
 
     const title =
-      typeof body.title === "string" ? body.title.trim() : "A thought"
+      // left untitled: the local AI writes a temporary title after it's read
+      typeof body.title === "string" ? body.title.trim() : ""
     const content = body.content.trim()
     // category = Writing / Insight / Event / Emotion; empty lets the AI decide
     const category = parsePurposes(

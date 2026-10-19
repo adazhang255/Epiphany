@@ -1,5 +1,6 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
@@ -9,7 +10,7 @@ type ThreadOption = ThreadRef & { title: string; size: number }
 // "Add to thread" on a highlight: pick which thread it belongs in. The list
 // comes from the Threads page (threads you arranged, similar passages, and
 // questions with answers, where it's added as an answer).
-export function AddToThreadButton({
+function AddToThreadButtonInner({
   item,
   exclude,
   quiet = false,
@@ -131,4 +132,11 @@ export function AddToThreadButton({
       )}
     </span>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function AddToThreadButton(
+  props: React.ComponentProps<typeof AddToThreadButtonInner>,
+) {
+  return usePublicView() ? null : <AddToThreadButtonInner {...props} />
 }

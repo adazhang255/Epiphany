@@ -9,8 +9,14 @@ export type ProposedEntry = {
   content: string
 }
 
-// Roughly what fits in the model's context next to the instructions.
-const SPLIT_WINDOW = 18_000
+// How much text the model reads at once to find where entries start. Small
+// local models list only the first several breaks in a long stretch, so each
+// read is short, and the next one starts at the last break found.
+const SPLIT_WINDOW = 6_000
+// when a read finds no break, the next one still overlaps it by this much
+const SPLIT_OVERLAP = 1_000
+// most reads for one document (6 000 characters each, so ~1.2 MB)
+const MAX_SPLIT_READS = 200
 // Shorter than this, a document without headings or dates is one entry.
 const MIN_SPLIT_CHARS = 600
 const META_PREVIEW = 700
@@ -32,8 +38,9 @@ const splitSchema = {
   required: ["entries"],
 }
 
-const SPLIT_PROMPT = `You are given text from a document that may contain several separate journal entries or notes written at different times.
-Find where each separate entry begins. For each entry, copy its first 6 to 10 words EXACTLY as written (firstWords).
+const SPLIT_PROMPT = `You are given text from a document that may contain many separate journal entries or notes written at different times: often 5, 10, 20 or more.
+Find where EVERY separate entry begins, in order, from the first to the very last one in the text. Don't stop early: go through to the end. A new entry often starts with a new day or time ("Today", "This morning", a date), a change of subject, or a new paragraph.
+For each entry, copy its first 6 to 10 words EXACTLY as written (firstWords).
 If the whole text is a single entry, return just one item with its first words. Do not summarise or rewrite anything.`
 
 // One entry per call with a flat schema: small local models handle this far
@@ -77,10 +84,15 @@ function validDate(value: unknown) {
 }
 
 // Ask the model where entries start, then cut the original text at those
-// points. Text is always cut from the document itself, never retyped.
+// points. Text is always cut from the document itself, never retyped. Each
+// read starts at the last entry found, so however few breaks the model
+// lists at a time, it keeps going until the end of the document.
 async function aiSplit(text: string, model: string): Promise<Segment[]> {
   const starts = new Set<number>([0])
-  for (let offset = 0; offset < text.length; offset += SPLIT_WINDOW) {
+  // written in lines or paragraphs (not one unbroken block)
+  const lined = text.includes("\n")
+  let offset = 0
+  for (let read = 0; read < MAX_SPLIT_READS && offset < text.length; read++) {
     const window = text.slice(offset, offset + SPLIT_WINDOW)
     const { entries } = await chatJSON<{ entries: { firstWords: string }[] }>(
       SPLIT_PROMPT,
@@ -88,10 +100,21 @@ async function aiSplit(text: string, model: string): Promise<Segment[]> {
       splitSchema,
       { temperature: 0, model },
     )
+    let last = offset
     for (const entry of entries ?? []) {
       const range = findQuote(window, String(entry.firstWords ?? ""))
-      if (range) starts.add(offset + range.start)
+      if (!range) continue
+      // entries start on a new line: a break the model saw mid-paragraph
+      // belongs at the start of that paragraph (one that's already there)
+      const at = lined
+        ? text.lastIndexOf("\n", offset + range.start - 1) + 1
+        : offset + range.start
+      starts.add(at)
+      last = Math.max(last, at)
     }
+    // read on from the last entry found, or past this stretch if none was
+    // (the whole stretch belongs to the entry before it)
+    offset = last > offset ? last : offset + SPLIT_WINDOW - SPLIT_OVERLAP
   }
   const sorted = [...starts].sort((a, b) => a - b)
   return sorted

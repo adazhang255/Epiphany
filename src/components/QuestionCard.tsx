@@ -1,9 +1,11 @@
 "use client"
 
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { HighlightKind } from "@/components/HighlightKind"
+import { EntryTitle } from "@/components/EntryTitle"
 
 export type QuestionView = {
   id: string
@@ -78,21 +80,23 @@ export function QuestionCard({ question }: { question: QuestionView }) {
           href={`/notes/${question.noteId}`}
           className="underline decoration-stone-700 hover:text-stone-300"
         >
-          {question.noteTitle || "Untitled thought"}
+          <EntryTitle title={question.noteTitle} />
         </Link>
-        <button
-          type="button"
-          disabled={pending === "self"}
-          onClick={() => markNotQuestion(!question.hidden)}
-          title={
-            question.hidden
-              ? "Put it back in your questions"
-              : "Hide it: it isn't really a question"
-          }
-          className="ml-auto normal-case tracking-normal text-stone-500 underline decoration-stone-700 hover:text-stone-200 disabled:opacity-50"
-        >
-          {question.hidden ? "Restore" : "Not a question"}
-        </button>
+        {!PUBLIC_SITE && (
+          <button
+            type="button"
+            disabled={pending === "self"}
+            onClick={() => markNotQuestion(!question.hidden)}
+            title={
+              question.hidden
+                ? "Put it back in your questions"
+                : "Hide it: it isn't really a question"
+            }
+            className="ml-auto normal-case tracking-normal text-stone-500 underline decoration-stone-700 hover:text-stone-200 disabled:opacity-50"
+          >
+            {question.hidden ? "Restore" : "Not a question"}
+          </button>
+        )}
       </p>
       <p
         className={`mt-2 font-serif text-lg leading-snug ${question.hidden ? "text-stone-500 line-through decoration-stone-700" : "text-stone-100"}`}
@@ -115,17 +119,19 @@ export function QuestionCard({ question }: { question: QuestionView }) {
                     href={`/notes/${reply.noteId}?h=${reply.id}#h-${reply.id}`}
                     className="underline decoration-stone-700 hover:text-stone-300"
                   >
-                    {reply.noteTitle || "Untitled thought"}
+                    <EntryTitle title={reply.noteTitle} />
                   </Link>
                 </span>
-                <button
-                  type="button"
-                  disabled={pending === reply.id}
-                  onClick={() => unlink(reply.id)}
-                  className="ml-auto text-stone-600 underline hover:text-stone-300"
-                >
-                  Not an answer
-                </button>
+                {!PUBLIC_SITE && (
+                  <button
+                    type="button"
+                    disabled={pending === reply.id}
+                    onClick={() => unlink(reply.id)}
+                    className="ml-auto text-stone-600 underline hover:text-stone-300"
+                  >
+                    Not an answer
+                  </button>
+                )}
               </p>
               <p className="mt-1 font-serif text-[15px] leading-snug text-stone-300">
                 “{reply.quote}”

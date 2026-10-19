@@ -153,20 +153,48 @@ of memory.
 
 ## Publishing to GitHub Pages
 
-1. On **Publish**, tick the entries to make public and click **Build site**.
-   Only those entries (plus their highlights, tags and threads among them) are
-   written to `public-site/`. Unpublished entries are removed on the next build.
-2. Check it with **Preview the site**.
+1. On **Publish**, tick the entries to make public (click one to preview it
+   exactly as the site will show it) and click **Build site** (or run
+   `npm run publish:build`). The site is this same app, read-only: the same
+   Timeline, Notebook, Threads, Stats, Custom charts, On this day and entry
+   pages, built only from the public entries. Your journal is only read: the
+   build works on a copy with every other entry deleted, then exports static
+   files to `public-site/`. Editing, Write, Import, Ask and Publish aren't
+   part of it, and search there matches words only (meaning needs your local
+   AI). Filters and searches run in the visitor's browser.
+2. Check it with **Preview the site** (served locally at its GitHub Pages
+   path, e.g. `/thedetective/`).
 3. When ready, make `public-site/` its own **public** repository (GitHub Pages
-   is free only for public repos):
+   is free only for public repos). Once:
    ```bash
    cd public-site
-   git init && git add . && git commit -m "Publish"
-   git remote add origin git@github.com:<you>/<site-repo>.git
-   git push -u origin main
+   git init -b main
+   git remote add origin https://github.com/<account>/<site-repo>.git
    ```
    Then on GitHub, under that repo's Settings → Pages, choose "Deploy from a
-   branch", `main`, `/ (root)`. After each later build: commit and push again.
+   branch", `main`, `/ (root)`.
+4. Once: `npm run publish:login` saves a GitHub token for the site's account
+   (GitHub → Settings → Developer settings → Personal access tokens →
+   Fine-grained; only the site's repository, Contents: Read and write). It's
+   kept in your system keychain, not in the project.
+5. After each build: `npm run publish:push` lists what changes on the site
+   since your last push (entries and passages new, changed or taken off),
+   asks, then commits and pushes. The Publish page shows the same list.
+
+**Sharing just a passage:** on Publish, open an entry's "Share just a
+passage" and tick the highlights to share. The site gets only those passages
+(no title, none of the rest of the entry); the entry itself stays private.
+
+**Publishing from a different GitHub account** than the app's own repo: set
+the site folder's identity once, inside `public-site/`:
+
+```bash
+git config user.name  <account>                              # commits are by it
+git config user.email <its email>
+git config credential.https://github.com.username <account>  # pushes log in as it
+```
+
+`npm run publish:push` shows who it will commit and push as before it does.
 
 `public-site/` is git-ignored here, and rebuilding never touches its `.git`
 folder. Your app's own repository can be public: `dev.db`, its backups and
@@ -191,6 +219,36 @@ two places:
 
   `demo.db` is git-ignored and that script refuses to touch any other file.
 
+## Backups
+
+While the app is running it backs up your journal once a day (a consistent
+copy, safe while you write) to `backups/journal/`, keeping the last 30.
+`npm run backup` makes one now. In `.env.local`:
+
+```bash
+BACKUP_DIR="~/Library/Mobile Documents/com~apple~CloudDocs/Journal backups"  # e.g. iCloud Drive
+BACKUP_KEEP=30
+# BACKUP_AUTO=off   # no automatic daily backups
+```
+
+To back up even when the app isn't open, `npm run backup:schedule` asks
+macOS to run it nightly. macOS only lets a background job read your
+Documents folder if you give `node` Full Disk Access (System Settings →
+Privacy & Security), which covers every Node script; without it the
+nightly job fails and the daily in-app backup is what you have.
+`npm run backup:unschedule` turns it off.
+
+## Writer profile
+
+Stats → "You, from your writing": your local AI reads ten entries spread
+across your journal (in full, up to a few paragraphs each, with their
+highlights) and writes a short profile in the style of an Ask answer: core
+themes, interests and thought patterns (quoting you), changes over time, and
+an overall impression. It runs in the background (about 15 seconds), is
+kept in `.cache/` (git-ignored), and never leaves your
+computer. The public site's version is written while it's built, from your
+public entries only.
+
 ## Privacy
 
 - The AI runs only in Ollama on this computer. The app refuses any non-local
@@ -214,4 +272,14 @@ two places:
 | `npm run build`       | Production build                     |
 | `npm start`           | Serve the production build           |
 | `npm run lint`        | ESLint                               |
+| `npm test`            | Unit tests (Vitest)                  |
 | `npm run db:studio`   | Browse the database in Prisma Studio |
+
+## Updating the public template
+
+If you keep a public template copy of this app (with no history and nothing
+private), `npm run release:template` copies the latest commit into
+`../reflections` (or `TEMPLATE_DIR`), commits and pushes it. Only committed
+files go, and it stops if anything private (a database, `.env*`, `backups/`,
+`.cache/`…) was ever committed. Add `-- --dry-run` to commit there without
+pushing.

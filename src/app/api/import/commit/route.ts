@@ -44,9 +44,7 @@ export async function POST(req: Request) {
       prisma.note.create({
         data: {
           title:
-            typeof e.title === "string" && e.title.trim()
-              ? e.title.trim()
-              : "Untitled thought",
+            typeof e.title === "string" && e.title.trim() ? e.title.trim() : "",
           content: String(e.content).trim(),
           date: localDate(e.date),
           category: "", // set by analysis

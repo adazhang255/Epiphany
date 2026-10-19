@@ -1,11 +1,13 @@
 "use client"
 
+import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { titleText } from "@/features/notes/lib/titles"
 
 // Delete an entry: one click asks, a second confirms. The server keeps a
 // backup in backups/ before removing it.
-export function DeleteEntryButton({
+function DeleteEntryButtonInner({
   noteId,
   title,
   onDeleted,
@@ -84,9 +86,12 @@ export function DeleteEntryButton({
       {asking && (
         <span
           role="alertdialog"
-          aria-label={`Delete “${title || "Untitled"}”?`}
+          aria-label={`Delete “${titleText(title)}”?`}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setAsking(false)
+            if (e.key === "Escape") {
+              e.preventDefault() // closes this, not the editor around it
+              setAsking(false)
+            }
           }}
           className="absolute bottom-full right-0 z-30 mb-2 flex items-center gap-2 whitespace-nowrap rounded-md border border-rose-400/40 bg-stone-900 px-2 py-1 font-mono text-[11px] shadow-xl shadow-black/50"
         >
@@ -113,4 +118,11 @@ export function DeleteEntryButton({
       )}
     </span>
   )
+}
+
+// Edits your journal, so it isn't part of the read-only public site.
+export function DeleteEntryButton(
+  props: React.ComponentProps<typeof DeleteEntryButtonInner>,
+) {
+  return usePublicView() ? null : <DeleteEntryButtonInner {...props} />
 }

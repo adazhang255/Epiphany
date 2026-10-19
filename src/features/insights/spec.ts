@@ -3,11 +3,12 @@ import {
   PURPOSE_NAMES,
   TOPIC_NAMES,
 } from "@/features/notes/lib/topics"
+import { cleanKeywords } from "@/features/insights/keywords"
 
 // A chart is described by this small spec. The builder edits it by hand, the
 // AI fills it in from a question, and compute() turns it into numbers, so
 // the model never makes up data.
-export const MEASURES = ["entries", "highlights", "words"] as const
+export const MEASURES = ["entries", "highlights", "words", "mentions"] as const
 export const GROUPS = [
   "day",
   "week",
@@ -17,8 +18,15 @@ export const GROUPS = [
   "purpose",
   "topic",
   "category",
+  "keyword",
 ] as const
-export const SPLITS = ["none", "purpose", "topic", "category"] as const
+export const SPLITS = [
+  "none",
+  "purpose",
+  "topic",
+  "category",
+  "keyword",
+] as const
 export const CHARTS = ["bar", "line", "area"] as const
 
 export type ChartSpec = {
@@ -29,13 +37,33 @@ export type ChartSpec = {
   chart: (typeof CHARTS)[number]
   // show each split as a share of its column instead of a count
   normalize: boolean
-  filter: { purpose?: string; topic?: string; category?: string }
+  // after / before: YYYY-MM-DD, both days included
+  filter: {
+    purpose?: string
+    topic?: string
+    category?: string
+    after?: string
+    before?: string
+  }
+  // words or phrases: counted ("mentions", or grouped/split by keyword), or
+  // else only entries that mention one of them are included. None, where
+  // they're counted: the most written words, picked from the entries.
+  keywords: string[]
 }
+
+// whether the chart counts or compares its keywords (not just filters by them)
+export const keywordAxis = (
+  spec: Pick<ChartSpec, "measure" | "groupBy" | "splitBy">,
+) =>
+  spec.measure === "mentions" ||
+  spec.groupBy === "keyword" ||
+  spec.splitBy === "keyword"
 
 export const MEASURE_LABEL: Record<ChartSpec["measure"], string> = {
   entries: "Entries",
   highlights: "Highlights",
   words: "Words written",
+  mentions: "Keyword mentions",
 }
 
 export const GROUP_LABEL: Record<ChartSpec["groupBy"], string> = {
@@ -47,6 +75,7 @@ export const GROUP_LABEL: Record<ChartSpec["groupBy"], string> = {
   purpose: "Category",
   topic: "Topic",
   category: "Highlight type",
+  keyword: "Keyword",
 }
 
 export const SPLIT_LABEL: Record<ChartSpec["splitBy"], string> = {
@@ -54,6 +83,7 @@ export const SPLIT_LABEL: Record<ChartSpec["splitBy"], string> = {
   purpose: "Category",
   topic: "Topic",
   category: "Highlight type",
+  keyword: "Keyword",
 }
 
 export function defaultTitle(spec: Omit<ChartSpec, "title">) {
@@ -68,6 +98,17 @@ export function defaultTitle(spec: Omit<ChartSpec, "title">) {
   const { purpose, topic, category } = spec.filter
   const filters = [purpose, topic, category].filter(Boolean)
   if (filters.length) parts.push(`only ${filters.join(", ")}`)
+  const { after, before } = spec.filter
+  if (after && before) parts.push(`${after} to ${before}`)
+  else if (after) parts.push(`from ${after}`)
+  else if (before) parts.push(`until ${before}`)
+  if (spec.keywords.length)
+    parts.push(
+      keywordAxis(spec)
+        ? `for ${spec.keywords.map((k) => `“${k}”`).join(", ")}`
+        : `entries mentioning ${spec.keywords.map((k) => `“${k}”`).join(" or ")}`,
+    )
+  else if (keywordAxis(spec)) parts.push("for your key words")
   return parts.join(", ")
 }
 
@@ -102,6 +143,21 @@ export function parseSpec(raw: unknown): ChartSpec {
     (c) => c.toLowerCase() === String(f.category ?? "").toLowerCase(),
   )
   if (category) filter.category = category
+  const day = (v: unknown) =>
+    typeof v === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+    !Number.isNaN(new Date(`${v}T00:00`).getTime())
+      ? v
+      : undefined
+  const after = day(f.after)
+  const before = day(f.before)
+  if (after) filter.after = after
+  if (before) filter.before = before
+  // the wrong way round: swap them
+  if (after && before && after > before) {
+    filter.after = before
+    filter.before = after
+  }
 
   const spec = {
     measure: pick(MEASURES, r.measure, "entries"),
@@ -110,6 +166,7 @@ export function parseSpec(raw: unknown): ChartSpec {
     chart: pick(CHARTS, r.chart, "bar"),
     normalize: r.normalize === true,
     filter,
+    keywords: cleanKeywords(r.keywords),
   }
   // splitting by the same thing you group by says nothing
   if (spec.splitBy === spec.groupBy) spec.splitBy = "none"

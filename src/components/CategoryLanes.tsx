@@ -9,6 +9,8 @@ import {
   SENTIMENT_COLORS,
   SENTIMENT_LABELS,
 } from "@/features/notes/lib/topics"
+import { EntryTitle } from "@/components/EntryTitle"
+import { titleText } from "@/features/notes/lib/titles"
 
 export type LaneEntry = {
   id: string
@@ -408,7 +410,7 @@ export function CategoryLanes({
               <Link
                 key={e.id}
                 href={`/notes/${e.id}`}
-                aria-label={`${e.title || "Untitled"}, ${shortDate(new Date(e.date))}, ${e.category ?? "no category"}`}
+                aria-label={`${titleText(e.title)}, ${shortDate(new Date(e.date))}, ${e.category ?? "no category"}`}
               >
                 <circle
                   cx={cx}
@@ -436,7 +438,7 @@ export function CategoryLanes({
               }}
             >
               <p className="font-serif text-sm text-stone-100">
-                {hover.entry.title || "Untitled thought"}
+                <EntryTitle title={hover.entry.title} />
               </p>
               <p className="mt-0.5 font-mono text-stone-400">
                 {shortDate(new Date(hover.entry.date))}
