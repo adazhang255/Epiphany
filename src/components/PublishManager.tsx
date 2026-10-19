@@ -286,7 +286,7 @@ export function PublishManager({
         </ul>
       </section>
 
-      <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+      <aside className="space-y-6 lg:sticky lg:top-8 lg:self-start">
         <div className="space-y-3 rounded-xl border border-white/[0.07] bg-panel p-4">
           <h2 className="font-serif text-lg text-ink">Site</h2>
           <label className="block">

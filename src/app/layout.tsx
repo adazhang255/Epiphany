@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Fraunces, Space_Mono, Work_Sans } from "next/font/google"
-import { SiteHeader } from "@/components/SiteHeader"
+import { SiteHeader, TopTools } from "@/components/SiteHeader"
 import { AskBubble } from "@/components/AskBubble"
 import "./globals.css"
 import { SITE_AUTHOR, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site-mode"
@@ -40,13 +40,17 @@ export default function RootLayout({
     >
       <body className="min-h-screen font-sans">
         <SiteHeader />
-        <main className="mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
-          {children}
-        </main>
+        {/* beside the side nav on wide screens */}
+        <div className="lg:pl-56">
+          <TopTools />
+          <main className="mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
+            {children}
+          </main>
+          <footer className="pb-10 text-center text-sm text-stone-600">
+            {SITE_AUTHOR ? `Written by ${SITE_AUTHOR} · ` : ""}Just think.
+          </footer>
+        </div>
         <AskBubble />
-        <footer className="pb-10 text-center text-sm text-stone-600">
-          {SITE_AUTHOR ? `Written by ${SITE_AUTHOR} · ` : ""}Just think.
-        </footer>
       </body>
     </html>
   )

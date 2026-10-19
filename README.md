@@ -24,9 +24,12 @@ out on a timeline, so you can watch your thinking change over time.
 - **Publish** (`/publish`): choose entries to make public and build a static
   site for GitHub Pages. Everything else stays private.
 - **Entry** (`/notes/[id]`) and **Write** (`/write`).
-- **Export to Google Docs**: on the Notebook (everything, or what a filter or
-  search shows) and on each entry. Downloads a .docx, made on this computer,
-  that Google Docs opens as a document (Drive → New → File upload).
+- **Export** (`/export`, next to Import): your entries as a diary (each
+  opens with its date, then its title, then the text), previewed as they'll
+  look, with Copy to clipboard (paste into a new Google Doc: "Open a new
+  Google Doc" opens docs.new) or Download .docx. The Notebook (everything, or
+  what a filter or search shows) and each entry link to it. No Google
+  sign-in; nothing is sent until you paste or upload it.
 
 Stack: Next.js 16 (App Router), Prisma 7 + SQLite (`dev.db`), Tailwind 4, and a
 local LLM via [Ollama](https://ollama.com) for highlights.

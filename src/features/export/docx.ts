@@ -1,26 +1,17 @@
-import {
-  Document,
-  HeadingLevel,
-  Packer,
-  PageBreak,
-  Paragraph,
-  TextRun,
-} from "docx"
+import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx"
 import { titleText } from "@/features/notes/lib/titles"
+import { ACCENT, diaryDate, spanOf } from "@/features/export/html"
 
-// Entries as a Word document (.docx), which Google Docs opens as a document
-// of its own: each entry's title as a heading, its date, then its text, a
-// page each. Made on this computer; nothing is sent anywhere.
+// Entries as a diary in a Word document (.docx), which Google Docs opens as
+// a document of its own. The same look as the Export page's preview: each
+// entry opens with its date, then its title in italics, then the text, all
+// near one size, with a small ornament between entries. Made on this
+// computer; nothing is sent anywhere.
 
 export type ExportEntry = { title: string; date: Date; content: string }
 
-const longDate = (d: Date) =>
-  d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  })
+const color = ACCENT.slice(1)
+const BODY = 24 // half-points: 12pt
 
 // paragraphs split on blank lines; single line breaks kept inside them
 function paragraphs(text: string) {
@@ -30,7 +21,7 @@ function paragraphs(text: string) {
     .map(
       (para) =>
         new Paragraph({
-          spacing: { after: 160, line: 300 },
+          spacing: { after: 200, line: 384 },
           children: para
             .split("\n")
             .map(
@@ -43,15 +34,37 @@ function paragraphs(text: string) {
 
 export async function entriesDocx(entries: ExportEntry[], title: string) {
   const body = entries.flatMap((e, i) => [
+    ...(i > 0
+      ? [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 280, after: 280 },
+            children: [new TextRun({ text: "⁂", color: "999999" })],
+          }),
+        ]
+      : []),
     new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      pageBreakBefore: i > 0,
-      children: [new TextRun(titleText(e.title))],
+      spacing: { after: 40 },
+      keepNext: true,
+      children: [
+        new TextRun({
+          text: diaryDate(e.date),
+          bold: true,
+          smallCaps: true,
+          color,
+          size: 25,
+        }),
+      ],
     }),
     new Paragraph({
-      spacing: { after: 240 },
+      spacing: { after: 160 },
+      keepNext: true,
       children: [
-        new TextRun({ text: longDate(e.date), italics: true, color: "777777" }),
+        new TextRun({
+          text: titleText(e.title),
+          italics: true,
+          color: "555555",
+        }),
       ],
     }),
     ...paragraphs(e.content),
@@ -60,27 +73,26 @@ export async function entriesDocx(entries: ExportEntry[], title: string) {
     title,
     creator: "Reflections",
     styles: {
-      default: { document: { run: { font: "Georgia", size: 24 } } },
+      default: {
+        document: { run: { font: "Georgia", size: BODY, color: "222222" } },
+      },
     },
     sections: [
       {
         children: [
           new Paragraph({
-            heading: HeadingLevel.TITLE,
-            children: [new TextRun(title)],
+            spacing: { after: 40 },
+            children: [new TextRun({ text: title, bold: true, size: 30 })],
           }),
           new Paragraph({
-            spacing: { after: 240 },
+            spacing: { after: 400 },
             children: [
               new TextRun({
-                text: `${entries.length} ${entries.length === 1 ? "entry" : "entries"} · exported ${longDate(new Date())}`,
+                text: `${spanOf(entries)} · ${entries.length} ${entries.length === 1 ? "entry" : "entries"}`,
                 color: "777777",
               }),
             ],
           }),
-          ...(entries.length
-            ? [new Paragraph({ children: [new PageBreak()] })]
-            : []),
           ...body,
         ],
       },

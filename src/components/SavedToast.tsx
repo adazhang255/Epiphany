@@ -24,7 +24,7 @@ export function SavedToast({
   return (
     <div
       role="status"
-      className={`pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 transition-all duration-500 ${
+      className={`pointer-events-none fixed left-1/2 top-20 z-40 lg:top-6 -translate-x-1/2 transition-all duration-500 ${
         visible ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"
       }`}
     >

@@ -181,7 +181,7 @@ export default async function NotePage({
             </EditableEntry>
           </article>
 
-          <aside className="space-y-10 lg:sticky lg:top-24 lg:self-start">
+          <aside className="space-y-10 lg:sticky lg:top-8 lg:self-start">
             <PublishToggle noteId={note.id} published={note.published} />
             <ExportDocsButton ids={[note.id]} />
             <section>

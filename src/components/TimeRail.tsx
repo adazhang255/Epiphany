@@ -45,7 +45,7 @@ export function TimeRail({ months }: { months: RailMonth[] }) {
     <>
       <nav
         aria-label="Jump to month"
-        className="sticky top-24 hidden max-h-[calc(100vh-8rem)] self-start overflow-y-auto pr-2 lg:block"
+        className="sticky top-8 hidden max-h-[calc(100vh-4rem)] self-start overflow-y-auto pr-2 lg:block"
       >
         {years.map((year) => (
           <div key={year} className="mb-5">

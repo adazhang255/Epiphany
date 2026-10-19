@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/prisma"
 import { entriesDocx } from "@/features/export/docx"
+import { entriesHtml, entriesText } from "@/features/export/html"
 import { titleText } from "@/features/notes/lib/titles"
 
-// Export entries as a .docx for Google Docs (or Word):
-//   POST { ids?: string[] }  → the file; no ids: the whole journal.
+// Export entries for Google Docs:
+//   POST { ids?: string[], format?: "docx" | "html" }
+//   docx (default): a .docx file (opens in Google Docs or Word);
+//   html: { html, text } to copy and paste into a new Google Doc.
+//   No ids: the whole journal.
 // Oldest first, like reading a journal.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
@@ -19,6 +23,15 @@ export async function POST(req: Request) {
     return Response.json({ error: "No entries to export" }, { status: 404 })
 
   const title = notes.length === 1 ? titleText(notes[0].title) : "Journal"
+  if (body?.format === "html")
+    return Response.json(
+      {
+        html: entriesHtml(notes, title),
+        text: entriesText(notes),
+        count: notes.length,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    )
   const file = await entriesDocx(notes, title)
   const now = new Date()
   const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`

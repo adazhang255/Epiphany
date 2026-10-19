@@ -527,7 +527,7 @@ export function TimelineView({
                     id={`m-${month.key}`}
                     className="relative"
                   >
-                    <h2 className="sticky top-[7.25rem] z-10 -ml-1 mb-6 flex items-baseline gap-3 bg-linear-to-b from-[#101011] via-[#101011]/95 to-transparent pb-4 pl-8 pt-3 lg:top-16">
+                    <h2 className="sticky top-[7.25rem] z-10 -ml-1 mb-6 flex items-baseline gap-3 bg-linear-to-b from-[#101011] via-[#101011]/95 to-transparent pb-4 pl-8 pt-3 lg:top-0">
                       <span className="font-serif text-3xl text-ink">
                         {month.label}
                       </span>

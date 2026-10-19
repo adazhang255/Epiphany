@@ -26,6 +26,12 @@ html {
   /* keep anchored targets clear of the sticky header */
   scroll-padding-top: 6rem;
 }
+/* no top bar beside the side nav */
+@media (min-width: 1024px) {
+  html {
+    scroll-padding-top: 2rem;
+  }
+}
 
 /* Ruled notebook paper for the writing surface */
 .notebook {
