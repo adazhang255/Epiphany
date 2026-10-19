@@ -24,6 +24,9 @@ out on a timeline, so you can watch your thinking change over time.
 - **Publish** (`/publish`): choose entries to make public and build a static
   site for GitHub Pages. Everything else stays private.
 - **Entry** (`/notes/[id]`) and **Write** (`/write`).
+- **Export to Google Docs**: on the Notebook (everything, or what a filter or
+  search shows) and on each entry. Downloads a .docx, made on this computer,
+  that Google Docs opens as a document (Drive → New → File upload).
 
 Stack: Next.js 16 (App Router), Prisma 7 + SQLite (`dev.db`), Tailwind 4, and a
 local LLM via [Ollama](https://ollama.com) for highlights.
@@ -243,8 +246,10 @@ nightly job fails and the daily in-app backup is what you have.
 Stats → "You, from your writing": your local AI reads ten entries spread
 across your journal (in full, up to a few paragraphs each, with their
 highlights) and writes a short profile in the style of an Ask answer: core
-themes, interests and thought patterns (quoting you), changes over time, and
-an overall impression. It runs in the background (about 15 seconds), is
+themes, interests and thought patterns (quoting you), changes over time, an
+overall impression, and "Moving toward your goals": a few small, concrete
+next steps toward goals you wrote about (left out of the public site's
+version). It runs in the background (about 15 seconds), is
 kept in `.cache/` (git-ignored), and never leaves your
 computer. The public site's version is written while it's built, from your
 public entries only.
@@ -254,7 +259,9 @@ public entries only.
 - The AI runs only in Ollama on this computer. The app refuses any non-local
   `OLLAMA_HOST`, and it has no other AI service or SDK.
 - Next.js telemetry is disabled (`NEXT_TELEMETRY_DISABLED=1` in the scripts).
-- Ask conversations aren't saved anywhere.
+- The Ask conversation is saved only on this computer, in
+  `.cache/ask-conversation-dev.json` (git-ignored, never published), so it's
+  still there after a reload or in another browser. `/new` deletes it.
 - Your journal lives in `dev.db`. It's git-ignored, so commits never include it.
   Back it up yourself; `dev.backup.db` is git-ignored too.
 - Data leaves the computer only when you choose: a Google Doc link import

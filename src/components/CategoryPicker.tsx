@@ -8,7 +8,8 @@ import {
   HIGHLIGHT_CATEGORIES,
 } from "@/features/notes/lib/topics"
 
-// The built-in types, any categories you've made, and "+ New" to make one.
+// The built-in types, any categories you've made, and "+ New" to make one
+// (left out with allowNew={false}, e.g. when changing a highlight's type).
 // `selected` marks the chosen ones (e.g. an entry's own categories).
 export function CategoryPicker({
   custom,
@@ -16,6 +17,7 @@ export function CategoryPicker({
   disabledFor = [],
   disabled = false,
   withQuestion = true,
+  allowNew = true,
   onPick,
 }: {
   // categories of your own already in use
@@ -26,6 +28,8 @@ export function CategoryPicker({
   disabled?: boolean
   // Question is a highlight type, not an entry category
   withQuestion?: boolean
+  // offer "+ New" to make a category
+  allowNew?: boolean
   onPick: (name: string) => void
 }) {
   const [adding, setAdding] = useState(false)
@@ -75,46 +79,47 @@ export function CategoryPicker({
           </button>
         )
       })}
-      {adding ? (
-        <span className="flex items-center gap-1">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                add()
-              }
-              if (e.key === "Escape") {
-                e.preventDefault() // closes this, not the editor around it
-                setAdding(false)
-              }
-            }}
-            autoFocus
-            maxLength={24}
-            placeholder="New category"
-            aria-label="New category name"
-            className="w-32 rounded-md border border-white/15 bg-transparent px-2 py-1 text-xs text-stone-100 outline-none focus:border-white/40"
-          />
+      {allowNew &&
+        (adding ? (
+          <span className="flex items-center gap-1">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  add()
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault() // closes this, not the editor around it
+                  setAdding(false)
+                }
+              }}
+              autoFocus
+              maxLength={24}
+              placeholder="New category"
+              aria-label="New category name"
+              className="w-32 rounded-md border border-white/15 bg-transparent px-2 py-1 text-xs text-stone-100 outline-none focus:border-white/40"
+            />
+            <button
+              type="button"
+              onClick={add}
+              disabled={!cleanCategoryName(name)}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs text-stone-100 disabled:opacity-40"
+            >
+              Add
+            </button>
+          </span>
+        ) : (
           <button
             type="button"
-            onClick={add}
-            disabled={!cleanCategoryName(name)}
-            className="rounded-md bg-white/10 px-2 py-1 text-xs text-stone-100 disabled:opacity-40"
+            disabled={disabled}
+            onClick={() => setAdding(true)}
+            className="rounded-lg border border-dashed border-white/15 px-2 py-1 text-xs text-stone-400 hover:text-stone-200"
           >
-            Add
+            + New
           </button>
-        </span>
-      ) : (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => setAdding(true)}
-          className="rounded-lg border border-dashed border-white/15 px-2 py-1 text-xs text-stone-400 hover:text-stone-200"
-        >
-          + New
-        </button>
-      )}
+        ))}
     </div>
   )
 }

@@ -49,8 +49,10 @@ type Step =
   | { kind: "found"; entries: FoundEntry[] }
   | { kind: "proposal"; proposal: ProposalView; status: ProposalStatus }
 
-// The conversation is kept in this browser (never on the server), so it
-// survives reloads and moving between pages. /new clears it.
+// The conversation is saved on this computer by the app (in its .cache
+// folder, see features/ask/conversation), so it survives reloads, leaving the
+// page, other browsers and cleared site data. /new clears it. It used to be
+// kept in the browser under this key: moved over once, then removed.
 const STORAGE_KEY = "ask:conversation:v1"
 // What you've typed, for ↑/↓ like a shell. Kept apart from the conversation
 // so `clear` doesn't forget it.
@@ -120,29 +122,54 @@ function Label({
   )
 }
 
-function loadTurns(): Turn[] {
+// an answer cut off by a reload or leaving the page can't resume
+function revive(saved: unknown): Turn[] {
+  if (!Array.isArray(saved)) return []
+  return saved.map((t: Turn) =>
+    t.role === "assistant" && t.pending
+      ? { ...t, pending: false, stopped: true }
+      : t,
+  )
+}
+
+// a conversation from before it was saved by the app (kept in the browser)
+function browserTurns(): Turn[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
-    if (!Array.isArray(saved)) return []
-    // an answer cut off by a reload can't resume
-    return saved.map((t: Turn) =>
-      t.role === "assistant" && t.pending
-        ? { ...t, pending: false, stopped: true }
-        : t,
-    )
+    return revive(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"))
   } catch {
     return []
   }
 }
-
-function saveTurns(turns: Turn[]) {
+function forgetBrowserTurns() {
   try {
-    if (turns.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(turns))
-    else localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // storage full or blocked: the conversation just won't persist
-  }
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {}
 }
+
+const CONVERSATION_URL = "/api/ask/conversation"
+
+async function loadTurns(): Promise<Turn[] | null> {
+  const res = await fetch(CONVERSATION_URL, { cache: "no-store" }).catch(
+    () => null,
+  )
+  const data = res?.ok ? await res.json().catch(() => null) : null
+  return data ? revive(data.turns) : null
+}
+
+async function saveTurns(turns: Turn[]) {
+  const body = JSON.stringify({ turns })
+  const res = await fetch(CONVERSATION_URL, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body,
+  }).catch(() => null)
+  if (res?.ok) lastSaved = body
+  return Boolean(res?.ok)
+}
+// what this page last saved or loaded: a page closed (or left) without new
+// changes saves nothing, so an older tab can't overwrite a newer conversation
+let lastSaved = ""
+const unsaved = (turns: Turn[]) => JSON.stringify({ turns }) !== lastSaved
 
 // "findEntries(maxWords: 5, titleContains: "hi")", like a command line
 function callText(name: string, args: Record<string, unknown>) {
@@ -253,7 +280,9 @@ export function AskJournal() {
   // follow the answer down the page only while you're at the bottom; scroll
   // up to read and it stops pulling you back
   const follow = useRef(true)
-  const loaded = useRef(false)
+  // the saved conversation has been brought back (only then is it saved)
+  const [restored, setRestored] = useState(false)
+  const latest = useRef<Turn[]>([])
   // ↑/↓ through what you've typed: where you are, and what you'd started typing
   const [recall, setRecall] = useState<{ index: number; draft: string } | null>(
     null,
@@ -285,15 +314,54 @@ export function AskJournal() {
     }
   }
 
-  // restore the last conversation, then keep it saved as it changes
+  // bring back the saved conversation (or, once, the one this browser kept)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads browser storage, which the server can't
-    setTurns(loadTurns())
-    loaded.current = true
+    let alive = true
+    void loadTurns().then(async (saved) => {
+      if (!alive) return
+      let next = saved ?? []
+      const old = browserTurns()
+      if (saved && saved.length === 0 && old.length > 0) {
+        next = old
+        if (await saveTurns(old)) forgetBrowserTurns()
+      } else if (saved === null) next = old // the app didn't answer
+      if (!alive) return
+      lastSaved = JSON.stringify({ turns: next })
+      setTurns(next)
+      setRestored(true)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
+  // then keep it saved as it changes (a moment after, while an answer
+  // streams in), and right away if the page is closed
   useEffect(() => {
-    if (loaded.current) saveTurns(turns)
-  }, [turns])
+    latest.current = turns
+    if (!restored) return
+    const timer = setTimeout(() => {
+      if (unsaved(turns)) void saveTurns(turns)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [turns, restored])
+  useEffect(() => {
+    if (!restored) return
+    const flush = () => {
+      if (!unsaved(latest.current)) return
+      navigator.sendBeacon?.(
+        CONVERSATION_URL,
+        new Blob([JSON.stringify({ turns: latest.current })], {
+          type: "application/json",
+        }),
+      )
+    }
+    window.addEventListener("pagehide", flush)
+    return () => {
+      window.removeEventListener("pagehide", flush)
+      // leaving Ask for another page
+      if (unsaved(latest.current)) void saveTurns(latest.current)
+    }
+  }, [restored])
 
   useEffect(() => {
     const onScroll = () => {

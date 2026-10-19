@@ -68,7 +68,7 @@ export function WriterProfile({
           <p className="mt-1 text-sm text-stone-400">
             {saved
               ? `Written ${new Date(saved.generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
-              : "A portrait written by your local AI from your entries: what you value, what you keep coming back to, how you've been, and what changed."}
+              : "A portrait written by your local AI from your entries: what you value, what you keep coming back to, how you've been, what changed, and small steps toward the goals you wrote about."}
           </p>
         </div>
         {!readOnly && (

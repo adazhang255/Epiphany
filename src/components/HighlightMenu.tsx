@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { CategoryPicker } from "@/components/CategoryPicker"
+import { TrashIcon } from "@/components/TrashIcon"
 import { OnTop } from "@/components/OnTop"
 import { spotUnder } from "@/features/notes/lib/caret"
 
@@ -147,31 +148,33 @@ export function HighlightMenu({
         <p className="px-1 pb-1.5 text-[11px] text-stone-500">
           {menu.kind === "new" ? "Mark as" : "Change to"}
         </p>
-        <div className="w-max max-w-[min(24rem,85vw)]">
-          <CategoryPicker
-            custom={custom}
-            disabled={busy}
-            disabledFor={menu.kind === "existing" ? [menu.category] : []}
-            onPick={(c) =>
-              menu.kind === "new"
-                ? send(`/api/notes/${noteId}/highlights`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                      text: menu.text,
-                      start: menu.start,
-                      end: menu.end,
-                      category: c,
-                    }),
-                  })
-                : send(`/api/highlights/${menu.id}`, {
-                    method: "PATCH",
-                    body: JSON.stringify({ category: c }),
-                  })
-            }
-          />
-        </div>
-        <div className="mt-1.5 flex justify-between gap-4 px-1 text-[11px]">
-          {menu.kind === "existing" ? (
+        <div className="flex w-max max-w-[min(26rem,88vw)] items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <CategoryPicker
+              custom={custom}
+              disabled={busy}
+              disabledFor={menu.kind === "existing" ? [menu.category] : []}
+              // a new category for new words; changing a highlight picks one
+              allowNew={menu.kind === "new"}
+              onPick={(c) =>
+                menu.kind === "new"
+                  ? send(`/api/notes/${noteId}/highlights`, {
+                      method: "POST",
+                      body: JSON.stringify({
+                        text: menu.text,
+                        start: menu.start,
+                        end: menu.end,
+                        category: c,
+                      }),
+                    })
+                  : send(`/api/highlights/${menu.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ category: c }),
+                    })
+              }
+            />
+          </div>
+          {menu.kind === "existing" && (
             <button
               type="button"
               disabled={busy}
@@ -179,13 +182,15 @@ export function HighlightMenu({
                 // every highlight on these words, so none is left underneath
                 send(`/api/highlights/${menu.id}?spot=1`, { method: "DELETE" })
               }
-              className="text-rose-300/80 hover:text-rose-200"
+              aria-label="Remove highlight"
+              title="Remove this highlight (the entry's text stays)"
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 text-stone-400 transition hover:border-rose-400/50 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
             >
-              {busy ? "Removing…" : "Remove highlight"}
+              <TrashIcon />
             </button>
-          ) : (
-            <span />
           )}
+        </div>
+        <div className="mt-1.5 flex justify-end gap-4 px-1 text-[11px]">
           <button
             type="button"
             onClick={onClose}

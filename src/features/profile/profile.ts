@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { prisma } from "@/lib/prisma"
 import {
+  chatJSON,
   chatStream,
   pickAskModel,
 } from "@/features/notes/services/ollama.service"
@@ -21,11 +22,17 @@ export type SavedProfile = {
   read: number // how many it read
 }
 
-// (git-ignored; never part of the public site)
+// (git-ignored; never part of the public site). One per database, so the
+// demo never shows or replaces yours: writer-profile.json for your journal,
+// writer-profile-demo.json for the demo.
+const DB = path
+  .basename((process.env.DATABASE_URL ?? "file:./dev.db").replace(/^file:/, ""))
+  .replace(/\.db$/, "")
+  .replace(/[^\w-]/g, "_")
 const FILE = path.join(
   /*turbopackIgnore: true*/ process.cwd(),
   ".cache",
-  "writer-profile.json",
+  DB === "dev" ? "writer-profile.json" : `writer-profile-${DB}.json`,
 )
 
 // entries read, spread evenly through time, and how much of each
@@ -50,6 +57,60 @@ const SHAPE = `Write my profile, speaking to me as "you" throughout (never "the 
 
 **Overall impression**
 (1 sentence)`
+
+// "Moving toward your goals": asked for separately as data (a goal and one
+// step each), then written out here, so it's always short and the same
+// shape (a small model filling a longer template drifts). Only in your own
+// profile, not the public site's.
+const GOALS_PROMPT = `From these journal entries, find up to 3 goals, wishes or things the writer said they want to do, change or get better at. For each give:
+- goal: 2 to 5 words, in the writer's own terms
+- step: one small, concrete action for this week, under 15 words, starting with a verb, using real details from the entries (a person, place, project or habit they mention)
+Each about a different goal. No quotes. Not "reflect", "explore" or "think about". No advice about health or therapy. If they wrote about no goals, return none.`
+const goalsSchema = {
+  type: "object",
+  properties: {
+    goals: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { goal: { type: "string" }, step: { type: "string" } },
+        required: ["goal", "step"],
+      },
+    },
+  },
+  required: ["goals"],
+}
+
+const words = (text: string, most: number) => {
+  const all = text.split(/\s+/).filter(Boolean)
+  return all.length > most ? null : all.join(" ")
+}
+const VAGUE = /^(reflect|explore|think|consider|try to|continue)\b/i
+
+// The section from the model's goals: each tidied, too long or vague ones
+// left out; "" if none are left.
+export function goalsSection(raw: unknown) {
+  const list = Array.isArray(raw) ? raw : []
+  const lines: string[] = []
+  for (const item of list) {
+    if (lines.length === 3) break
+    const clean = (v: unknown) =>
+      String(v ?? "")
+        .replace(/["“”*_]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    const goal = words(clean(item?.goal).replace(/[.:;,]+$/, ""), 6)
+    const first =
+      clean(item?.step).match(/^.*?[.!?](?=\s|$)/)?.[0] ?? clean(item?.step)
+    const step = words(first.replace(/[,;:–—-]+$/, ""), 18)
+    if (!goal || !step || VAGUE.test(step)) continue
+    const sentence = /[.!?]$/.test(step) ? step : `${step}.`
+    lines.push(
+      `* **${goal[0].toUpperCase()}${goal.slice(1)}:** ${sentence[0].toUpperCase()}${sentence.slice(1)}`,
+    )
+  }
+  return lines.length ? `**Moving toward your goals**\n${lines.join("\n")}` : ""
+}
 
 // a dozen entries spread across the journal, oldest first
 async function sample() {
@@ -83,7 +144,8 @@ async function sample() {
 }
 
 // Ask the local model for the profile. Saved unless `save` is false (the
-// public site writes its own, from public entries, while it's built).
+// public site writes its own, from public entries, while it's built, without
+// the goals section).
 export async function writeProfile({
   save = true,
   onStep,
@@ -112,15 +174,27 @@ export async function writeProfile({
       markdown += piece
     markdown = markdown
       .trim()
-      // a closing question, despite being asked not to
-      .replace(/\n+[^\n]*\?\s*$/, "")
+      // a closing question, despite being asked not to (not a bullet: a
+      // suggestion may end in one)
+      .replace(/\n+(?![*-]\s)[^\n]*\?\s*$/, "")
       .trim()
     if (markdown.length < 80)
       throw new Error("The model's answer was empty or cut off. Try again.")
     return markdown
   }
   // a second try if the first fails (e.g. the model was busy loading)
-  const markdown = await write().catch(() => write())
+  let markdown = await write().catch(() => write())
+  if (save) {
+    // (a profile without the goals is still worth keeping)
+    const goals = await chatJSON<{ goals: unknown }>(
+      GOALS_PROMPT,
+      text,
+      goalsSchema,
+      { model: await pickAskModel(), temperature: 0.3, numCtx: 6144 },
+    ).catch(() => null)
+    const section = goalsSection(goals?.goals)
+    if (section) markdown = `${markdown}\n\n${section}`
+  }
   const saved: SavedProfile = {
     markdown,
     generatedAt: new Date().toISOString(),

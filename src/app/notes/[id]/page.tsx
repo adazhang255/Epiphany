@@ -29,6 +29,7 @@ import {
 } from "@/features/notes/services/notes.service"
 import { isAnalysisPending } from "@/features/notes/services/analysis-queue"
 import { EntryTitle } from "@/components/EntryTitle"
+import { ExportDocsButton } from "@/components/ExportDocsButton"
 
 type Quote = { id: string; quote: string; category: string; manual: boolean }
 
@@ -182,6 +183,7 @@ export default async function NotePage({
 
           <aside className="space-y-10 lg:sticky lg:top-24 lg:self-start">
             <PublishToggle noteId={note.id} published={note.published} />
+            <ExportDocsButton ids={[note.id]} />
             <section>
               <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
                 Highlights

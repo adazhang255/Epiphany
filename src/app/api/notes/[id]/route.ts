@@ -138,11 +138,18 @@ export async function PATCH(
     }
     data.date = new Date(y, m - 1, d)
   }
-  if (Object.keys(data).length === 0) {
+  // (a change to the highlights alone, e.g. ones marked on the notebook's
+  // blank page right after it's saved, is an update too)
+  const changesHighlights = [
+    body.highlights,
+    body.removedHighlights,
+    body.addedHighlights,
+  ].some((list) => Array.isArray(list) && list.length > 0)
+  if (Object.keys(data).length === 0 && !changesHighlights) {
     return NextResponse.json(
       {
         error:
-          "Send published (true/false), purposes (a list), title, content or date",
+          "Send published (true/false), purposes (a list), title, content, date or highlights",
       },
       { status: 400 },
     )
@@ -160,7 +167,8 @@ export async function PATCH(
   // its old embedding describes the old text
   if (rewritten) data.embedding = null
 
-  await prisma.note.update({ where: { id }, data })
+  if (Object.keys(data).length > 0)
+    await prisma.note.update({ where: { id }, data })
 
   // Highlights you changed while editing: { id, quote, category? }, with
   // their words now (which must be in the saved text). They become yours, so

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   categoryColor,
   categoryGlyph,
@@ -20,28 +20,22 @@ export type LaneEntry = {
   sentiment: number | null // -2..2
 }
 
-type Range = "3m" | "12m" | "all"
 type ColorBy = "category" | "tone"
-
-const RANGES: { id: Range; label: string; months: number | null }[] = [
-  { id: "3m", label: "3 months", months: 3 },
-  { id: "12m", label: "12 months", months: 12 },
-  { id: "all", label: "All", months: null },
-]
 
 const LABEL_W = 170
 const LANE_H = 46
 // two label rows above the lanes: month, then year
 const AXIS_H = 40
 const PAD_R = 8
-// every month gets at least this much room; more months than fit scroll
-const MONTH_MIN_W = 56
+// The whole journal fits the card at first; zooming in widens each month
+// (up to MONTH_MAX_W, about 20 px a day) and the chart scrolls sideways.
+const MONTH_MAX_W = 600
+const ZOOM_STEP = 1.6
 const SURFACE = "#161617"
 const UNSET = "#5c5c57"
 // Hollow dashed ring: no category / not scored yet. Shape, not just a grey,
 // so it never passes for a neutral tone.
 const UNSET_RING = "#8a8a82"
-const DAY = 24 * 60 * 60 * 1000
 
 function shortDate(d: Date) {
   return d.toLocaleDateString("en-US", {
@@ -74,10 +68,10 @@ export function CategoryLanes({
   } | null>(null)
 
   const now = useMemo(() => new Date(today), [today])
-  const hasRecent = entries.some(
-    (e) => now.getTime() - new Date(e.date).getTime() < 365 * DAY,
-  )
-  const [range, setRange] = useState<Range>(hasRecent ? "12m" : "all")
+  // width of a month in px; null: fit the whole journal in the card
+  const [zoom, setZoom] = useState<number | null>(null)
+  // where to scroll once a zoom is drawn (keeps the spot you zoomed on still)
+  const pendingScroll = useRef<number | null>(null)
 
   useEffect(() => {
     const el = wrap.current
@@ -89,25 +83,21 @@ export function CategoryLanes({
     return () => observer.disconnect()
   }, [])
 
-  // The months shown: the last 3 or 12 (this one included), or from the
-  // first entry's month to this one.
+  // every month from the first entry's to this one
   const months = useMemo(() => {
-    const span = RANGES.find((r) => r.id === range)!.months
-    const first = span
-      ? new Date(now.getFullYear(), now.getMonth() - (span - 1), 1)
-      : monthStart(
-          new Date(
-            Math.min(
-              ...entries.map((e) => new Date(e.date).getTime()),
-              now.getTime(),
-            ),
-          ),
-        )
+    const first = monthStart(
+      new Date(
+        Math.min(
+          ...entries.map((e) => new Date(e.date).getTime()),
+          now.getTime(),
+        ),
+      ),
+    )
     const out: Date[] = []
     for (const m = new Date(first); m <= now; m.setMonth(m.getMonth() + 1))
       out.push(new Date(m))
     return out
-  }, [range, now, entries])
+  }, [now, entries])
 
   const startT = months[0].getTime()
   const endT = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime()
@@ -116,18 +106,59 @@ export function CategoryLanes({
     return t >= startT && t < endT
   })
 
-  // fit the card, or give each month MONTH_MIN_W and scroll sideways
+  // fit the card, or wider when zoomed in (then it scrolls sideways)
   const fitW = Math.max(100, width - LABEL_W - PAD_R)
-  const plotW = Math.max(fitW, months.length * MONTH_MIN_W)
-  const scrolls = plotW > fitW
+  const fitMonthW = fitW / months.length
+  const monthW = Math.min(
+    Math.max(zoom ?? fitMonthW, fitMonthW),
+    Math.max(MONTH_MAX_W, fitMonthW),
+  )
+  const plotW = months.length * monthW
+  const scrolls = plotW > fitW + 1
   const x = (iso: string) =>
     ((new Date(iso).getTime() - startT) / (endT - startT)) * plotW
 
-  // start at the newest months
+  // Zoom by `factor`, keeping the date at `at` px (from the view's left edge;
+  // its middle by default) where it is.
+  function zoomBy(factor: number, at?: number) {
+    const el = scroller.current
+    const view = el?.clientWidth ?? fitW
+    const anchor = at ?? view / 2
+    const frac = ((el?.scrollLeft ?? 0) + anchor) / plotW
+    const next = Math.min(
+      Math.max(monthW * factor, fitMonthW),
+      Math.max(MONTH_MAX_W, fitMonthW),
+    )
+    pendingScroll.current = frac * next * months.length - anchor
+    setZoom(next <= fitMonthW + 0.01 ? null : next)
+  }
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (el && pendingScroll.current !== null) {
+      el.scrollLeft = pendingScroll.current
+      pendingScroll.current = null
+    }
+  }, [plotW])
+
+  // ⌘/Ctrl + scroll, or a trackpad pinch, zooms where the pointer is
+  const zoomRef = useRef(zoomBy)
+  useEffect(() => {
+    zoomRef.current = zoomBy
+  })
   useEffect(() => {
     const el = scroller.current
-    if (el) el.scrollLeft = el.scrollWidth
-  }, [range, plotW])
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const at = e.clientX - el.getBoundingClientRect().left
+      // gentle for a pinch, at most ×1.5 a step for a mouse wheel
+      const step = Math.max(-0.4, Math.min(0.4, -e.deltaY * 0.005))
+      zoomRef.current(Math.exp(step), at)
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [])
 
   // the four built-ins, then any categories of your own in this range
   const lanes = [
@@ -219,20 +250,36 @@ export function CategoryLanes({
           </div>
           <div
             role="group"
-            aria-label="Time range"
+            aria-label="Zoom"
             className="inline-flex rounded-full border border-white/10 p-0.5 text-xs"
           >
-            {RANGES.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                aria-pressed={range === r.id}
-                onClick={() => setRange(r.id)}
-                className={toggle(range === r.id)}
-              >
-                {r.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => zoomBy(1 / ZOOM_STEP)}
+              disabled={zoom === null}
+              aria-label="Zoom out"
+              className={`${toggle(false)} disabled:opacity-30`}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-pressed={zoom === null}
+              onClick={() => setZoom(null)}
+              title="Show your whole journal"
+              className={toggle(zoom === null)}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={monthW >= MONTH_MAX_W}
+              aria-label="Zoom in"
+              className={`${toggle(false)} disabled:opacity-30`}
+            >
+              +
+            </button>
           </div>
         </div>
       </div>
@@ -262,12 +309,12 @@ export function CategoryLanes({
         </ul>
       )}
 
-      {scrolls && (
+      {(scrolls || months.length > 1) && (
         <p
           className="mt-3 font-mono text-[10px] uppercase tracking-widest text-stone-600"
           style={{ marginLeft: LABEL_W }}
         >
-          ← scroll for earlier months
+          scroll sideways to move · ⌘/Ctrl + scroll or pinch to zoom
         </p>
       )}
       <div ref={wrap} className={`${scrolls ? "mt-1" : "mt-4"} flex`}>
@@ -320,7 +367,7 @@ export function CategoryLanes({
         >
           {visible.length === 0 && (
             <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm text-stone-500">
-              No entries in this range.
+              No entries yet.
             </p>
           )}
           <svg
@@ -357,26 +404,37 @@ export function CategoryLanes({
                       stroke="rgb(255 255 255 / 0.18)"
                     />
                   )}
-                  <text
-                    x={(x0 + x1) / 2}
-                    y={16}
-                    textAnchor="middle"
-                    className="fill-stone-400 font-mono text-[10px] uppercase"
-                  >
-                    {m.toLocaleDateString("en-US", { month: "short" })}
-                  </text>
-                  {/* every month says its year (so a scrolled view does
-                      too); January's stands out where a year begins */}
-                  <text
-                    x={(x0 + x1) / 2}
-                    y={30}
-                    textAnchor="middle"
-                    className={`font-mono text-[10px] ${
-                      m.getMonth() === 0 ? "fill-stone-400" : "fill-stone-700"
-                    }`}
-                  >
-                    {m.getFullYear()}
-                  </text>
+                  {/* month names while there's room: short, then initials,
+                      then none (zoom in to see them) */}
+                  {monthW >= 14 && (
+                    <text
+                      x={(x0 + x1) / 2}
+                      y={16}
+                      textAnchor="middle"
+                      className="fill-stone-400 font-mono text-[10px] uppercase"
+                    >
+                      {m.toLocaleDateString("en-US", {
+                        month: monthW >= 30 ? "short" : "narrow",
+                      })}
+                    </text>
+                  )}
+                  {/* every month says its year while there's room (so a
+                      zoomed-in view does too); otherwise just where each year
+                      begins */}
+                  {(monthW >= 40 || m.getMonth() === 0 || i === 0) && (
+                    <text
+                      x={monthW >= 40 ? (x0 + x1) / 2 : x0 + 3}
+                      y={monthW >= 14 ? 30 : 16}
+                      textAnchor={monthW >= 40 ? "middle" : "start"}
+                      className={`font-mono text-[10px] ${
+                        m.getMonth() === 0 || monthW < 40
+                          ? "fill-stone-400"
+                          : "fill-stone-700"
+                      }`}
+                    >
+                      {m.getFullYear()}
+                    </text>
+                  )}
                 </g>
               )
             })}
@@ -458,8 +516,8 @@ export function CategoryLanes({
       {leader && (
         <p className="mt-3 text-sm text-stone-300">
           {leader.name === "No category"
-            ? `${top} of ${visible.length} entries in this range have no category yet.`
-            : `${leader.name} leads this range: ${top} of ${visible.length} entries (${Math.round((top / visible.length) * 100)}%).`}
+            ? `${top} of ${visible.length} entries have no category yet.`
+            : `${leader.name} leads overall: ${top} of ${visible.length} entries (${Math.round((top / visible.length) * 100)}%).`}
         </p>
       )}
     </section>

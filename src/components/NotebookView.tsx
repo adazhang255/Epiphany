@@ -9,6 +9,7 @@ import type { NotebookNote } from "@/features/notes/services/notes.service"
 import { NotebookFeed } from "@/components/NotebookFeed"
 import { TopicSearch } from "@/components/TopicSearch"
 import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
+import { ExportDocsButton } from "@/components/ExportDocsButton"
 
 export type NotebookFacets = {
   total: number
@@ -108,6 +109,16 @@ export function NotebookView({
                 : `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""}, newest first. Click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`
               : `${facets.total} ${facets.total === 1 ? "entry" : "entries"}, newest first. Keep scrolling to turn back through the notebook; click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`}
         </p>
+        {/* what's shown: the whole journal, or the entries filtered here */}
+        <ExportDocsButton
+          className="mt-4"
+          ids={filtered ? notes.map((n) => n.id) : undefined}
+          label={
+            filtered
+              ? `Export these ${notes.length} to Google Docs`
+              : "Export to Google Docs"
+          }
+        />
       </header>
 
       <div className="mb-10 space-y-3">

@@ -29,6 +29,7 @@ import {
   SENTIMENT_LABELS,
   splitList,
 } from "@/features/notes/lib/topics"
+import { TrashIcon } from "@/components/TrashIcon"
 
 const isoDay = (iso: string) => {
   const d = new Date(iso)
@@ -426,6 +427,22 @@ export function EditableEntry({
     setSelRange(null)
   }
 
+  // Take a highlight off (one marked in this edit simply goes; a saved one
+  // goes when you press Save). It leaves the list below at once.
+  function removeHighlight(id: string) {
+    if (added.some((a) => a.key === id)) {
+      setAdded((list) => list.filter((a) => a.key !== id))
+      setRanges((r) => {
+        const next = { ...r }
+        delete next[id]
+        return next
+      })
+    } else setRemovedIds((ids) => (ids.includes(id) ? ids : [...ids, id]))
+    setTypeOpen(null)
+    setCaret(null)
+    setMarking("Highlight removed. Saved when you press Save.")
+  }
+
   // Switch the type of the highlight the cursor is in.
   function retype(id: string, category: string) {
     if (added.some((a) => a.key === id))
@@ -680,11 +697,25 @@ export function EditableEntry({
               {selRange ? (
                 <CategoryPicker custom={custom} onPick={markSelection} />
               ) : (
-                <CategoryPicker
-                  custom={custom}
-                  selected={[here!.category]}
-                  onPick={(c) => retype(here!.id, c)}
-                />
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CategoryPicker
+                      custom={custom}
+                      selected={[here!.category]}
+                      allowNew={false}
+                      onPick={(c) => retype(here!.id, c)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeHighlight(here!.id)}
+                    aria-label="Remove highlight"
+                    title="Remove this highlight (the text stays)"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 text-stone-400 transition hover:border-rose-400/50 hover:bg-rose-400/10 hover:text-rose-300"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               )}
             </div>
           </OnTop>
@@ -702,101 +733,69 @@ export function EditableEntry({
           </p>
           <ul className="space-y-1.5">
             {note.highlights.map((h) => {
-              const gone = removed.includes(h)
+              // removed ones leave the list (see the line under it to undo)
+              if (removed.includes(h)) return null
               const words = nowText(h.id) ?? h.quote
               return (
                 <li
                   key={h.id}
-                  className={`rounded-lg px-2 py-1.5 text-sm ${
-                    gone ? "opacity-50" : "hover:bg-white/[0.03]"
-                  }`}
+                  className="rounded-lg px-2 py-1.5 text-sm hover:bg-white/[0.03]"
                 >
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     {/* click the type to change it */}
                     <button
                       type="button"
-                      disabled={gone}
                       onClick={() =>
                         setTypeOpen((open) => (open === h.id ? null : h.id))
                       }
                       title="Change its type"
-                      className="rounded px-1 hover:bg-white/10 disabled:hover:bg-transparent"
+                      className="rounded px-1 hover:bg-white/10"
                     >
                       <HighlightKind category={typeOf(h)} manual={h.manual} />
                     </button>
-                    <span
-                      className={`min-w-0 flex-1 font-serif text-stone-300 ${gone ? "line-through" : ""}`}
-                    >
+                    <span className="min-w-0 flex-1 font-serif text-stone-300">
                       “{words.length > 120 ? `${words.slice(0, 120)}…` : words}”
                     </span>
                     <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
                       {edited.includes(h) && (
                         <span className="text-ember">edited</span>
                       )}
-                      {gone ? (
-                        <>
-                          <span className="text-rose-300/80">
-                            removed on save
-                          </span>
-                          {removedIds.includes(h.id) ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setRemovedIds((ids) =>
-                                  ids.filter((x) => x !== h.id),
-                                )
-                              }
-                              className="text-stone-400 underline hover:text-stone-200"
-                            >
-                              Undo
-                            </button>
-                          ) : (
-                            <span className="normal-case tracking-normal text-stone-500">
-                              (its words were deleted)
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            disabled={!selRange}
-                            onClick={() => {
-                              if (!selRange) return
-                              setRanges((r) => ({
-                                ...r,
-                                [h.id]: snapToWords(draft.content, selRange),
-                              }))
-                            }}
-                            title={
-                              selRange
-                                ? "Make this highlight cover the text you've selected"
-                                : "Select text in the box above first"
-                            }
-                            className="text-stone-400 underline hover:text-stone-200 disabled:no-underline disabled:opacity-40"
-                          >
-                            Use selection
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRemovedIds((ids) => [...ids, h.id])
-                              setTypeOpen(null)
-                            }}
-                            aria-label="Remove this highlight"
-                            className="text-base leading-none text-stone-500 hover:text-rose-300"
-                          >
-                            ×
-                          </button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        disabled={!selRange}
+                        onClick={() => {
+                          if (!selRange) return
+                          setRanges((r) => ({
+                            ...r,
+                            [h.id]: snapToWords(draft.content, selRange),
+                          }))
+                        }}
+                        title={
+                          selRange
+                            ? "Make this highlight cover the text you've selected"
+                            : "Select text in the box above first"
+                        }
+                        className="text-stone-400 underline hover:text-stone-200 disabled:no-underline disabled:opacity-40"
+                      >
+                        Use selection
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeHighlight(h.id)}
+                        aria-label="Remove this highlight"
+                        title="Remove this highlight (the text stays)"
+                        className="text-stone-500 hover:text-rose-300"
+                      >
+                        <TrashIcon size={13} />
+                      </button>
                     </span>
                   </div>
-                  {typeOpen === h.id && !gone && (
+                  {typeOpen === h.id && (
                     <div className="mt-2 pl-1">
                       <CategoryPicker
                         custom={custom}
                         selected={[typeOf(h)]}
+                        allowNew={false}
                         onPick={(c) => {
                           setTypes((t) => ({ ...t, [h.id]: c }))
                           setTypeOpen(null)
@@ -828,18 +827,33 @@ export function EditableEntry({
                     </span>
                     <button
                       type="button"
-                      onClick={() =>
-                        setAdded((list) => list.filter((x) => x.key !== a.key))
-                      }
-                      aria-label="Remove this new highlight"
-                      className="text-base leading-none text-stone-500 hover:text-rose-300"
+                      onClick={() => removeHighlight(a.key)}
+                      aria-label="Remove this highlight"
+                      title="Remove this highlight (the text stays)"
+                      className="text-stone-500 hover:text-rose-300"
                     >
-                      ×
+                      <TrashIcon size={13} />
                     </button>
                   </li>
                 )
               })}
           </ul>
+          {removed.length > 0 && (
+            <p className="mt-2 px-2 text-xs text-stone-500">
+              {removed.length}{" "}
+              {removed.length === 1 ? "highlight" : "highlights"} removed on
+              save.{" "}
+              {removedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRemovedIds([])}
+                  className="underline hover:text-stone-300"
+                >
+                  Undo
+                </button>
+              )}
+            </p>
+          )}
         </div>
       )}
 

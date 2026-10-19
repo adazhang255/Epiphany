@@ -14,8 +14,9 @@ export default function AskPage() {
           Answers come only from your entries, with links to the ones used, and
           end with a question to keep you thinking. It can also find entries,
           and propose deleting or adding them, which you review and confirm.
-          Everything runs in Ollama on this computer; the conversation is kept
-          only in this browser until you type /new.
+          Everything runs in Ollama on this computer, and the conversation is
+          saved here too (in the app&apos;s folder, not online) until you type
+          /new.
         </p>
       </header>
       <AskJournal />

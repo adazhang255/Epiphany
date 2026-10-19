@@ -3,6 +3,7 @@
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { TrashIcon } from "@/components/TrashIcon"
 
 // Remove a highlight from the lists. The entry's text isn't touched: a
 // highlight is only a marker on it. Asks first, in a small box by the ×.
@@ -47,13 +48,13 @@ function RemoveHighlightButtonInner({
         }}
         aria-label="Remove this highlight"
         title="Remove this highlight (the entry stays as it is)"
-        className={`flex h-6 w-6 items-center justify-center rounded-full text-base leading-none transition ${
+        className={`flex h-6 w-6 items-center justify-center rounded-full transition ${
           asking
             ? "bg-rose-400/20 text-rose-200"
             : "text-stone-500 opacity-0 hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover/hl:opacity-100"
         }`}
       >
-        ×
+        <TrashIcon size={13} />
       </button>
       {asking && (
         <span
