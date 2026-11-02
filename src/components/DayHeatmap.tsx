@@ -91,7 +91,7 @@ export function DayHeatmap({
   nav,
 }: {
   days: Record<string, HeatmapDay>
-  // its heading ("Your writing" among the trackers on the overview)
+  // its heading ("Your writing" among the trackers)
   title?: string
   // the slideshow's arrows: one each side of the grid
   nav?: { prev: React.ReactNode; next: React.ReactNode }

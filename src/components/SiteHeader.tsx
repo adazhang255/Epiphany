@@ -5,7 +5,12 @@ import { usePublicView } from "@/components/usePublicView"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSyncExternalStore } from "react"
-import { NOTEBOOK_TABS, STATS_TABS, TIMELINE_TABS } from "@/components/sections"
+import {
+  NOTEBOOK_TABS,
+  STATS_TABS,
+  THREADS_TABS,
+  TIMELINE_TABS,
+} from "@/components/sections"
 import { AnalysisIndicator } from "@/components/AnalysisIndicator"
 import { ChartJobsIndicator } from "@/components/ChartJobsIndicator"
 
@@ -17,6 +22,13 @@ const sections = [
     tabs: TIMELINE_TABS,
     // a spine with three moments on it
     icon: "M5 2.5v11M5 4.5h0M5 8h0M5 11.5h0M8 4.5h5M8 8h3.5M8 11.5h4.5",
+  },
+  {
+    href: "/threads",
+    label: "Threads",
+    tabs: THREADS_TABS,
+    // two strands crossing and running on together
+    icon: "M2 4.5c4.5 0 7.5 7 12 7M2 11.5c4.5 0 7.5-7 12-7",
   },
   {
     href: "/notebook",

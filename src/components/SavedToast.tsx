@@ -7,19 +7,24 @@ import { useEffect, useState } from "react"
 export function SavedToast({
   highlights,
   pending,
+  missedHighlights = false,
 }: {
   highlights: number
   pending: boolean
+  // the highlights marked before saving couldn't be added
+  missedHighlights?: boolean
 }) {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
     const url = new URL(window.location.href)
     url.searchParams.delete("saved")
+    url.searchParams.delete("missed")
     window.history.replaceState(null, "", url)
-    const t = setTimeout(() => setVisible(false), 4200)
+    // a warning stays up longer, to be read
+    const t = setTimeout(() => setVisible(false), missedHighlights ? 9000 : 4200)
     return () => clearTimeout(t)
-  }, [])
+  }, [missedHighlights])
 
   return (
     <div
@@ -41,6 +46,12 @@ export function SavedToast({
           )
         )}
       </p>
+      {missedHighlights && (
+        <p className="mt-2 rounded-full border border-rose-400/40 bg-[#161617]/95 px-4 py-2 text-center text-sm text-rose-200 shadow-xl backdrop-blur">
+          The highlights you marked couldn&apos;t be added. Mark them again
+          below.
+        </p>
+      )}
     </div>
   )
 }

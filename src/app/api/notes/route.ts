@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache"
-import { parsePurposes } from "@/features/notes/lib/topics"
+import { cleanCategoryName, parsePurposes } from "@/features/notes/lib/topics"
+import { parseLocalDateTime } from "@/features/notes/lib/time"
 import { syncQuestions } from "@/features/questions/sync"
 import { enqueueAnalysis } from "@/features/notes/services/analysis-queue"
 import { NextResponse } from "next/server"
@@ -15,21 +16,11 @@ function isValidPayload(body: unknown): body is {
   purposes?: unknown[]
   tags?: string
   date?: string
+  time?: string
+  ownCategory?: unknown
+  sentiment?: unknown
 } {
   return typeof body === "object" && body !== null
-}
-
-function parseLocalDate(dateString: string | undefined) {
-  if (!dateString) {
-    return new Date()
-  }
-
-  const [year, month, day] = dateString.split("-").map(Number)
-  if (!year || !month || !day) {
-    return new Date()
-  }
-
-  return new Date(year, month - 1, day)
 }
 
 export async function GET() {
@@ -70,11 +61,43 @@ export async function POST(req: Request) {
           : "",
     ).join(",")
     const tags = typeof body.tags === "string" ? body.tags.trim() : ""
-    const date = parseLocalDate(
-      typeof body.date === "string" ? body.date : undefined,
-    )
+    // the day, and the time if you gave one ("HH:MM"); no day = now
+    const date =
+      (typeof body.date === "string" &&
+        parseLocalDateTime(
+          body.date,
+          typeof body.time === "string" ? body.time : "",
+        )) ||
+      new Date()
+    // the category you chose for it (up to three), and its tone, -2…2
+    const ownCategory = Array.isArray(body.ownCategory)
+      ? [
+          ...new Set(
+            body.ownCategory
+              .map(cleanCategoryName)
+              .filter((c): c is string => c !== null),
+          ),
+        ]
+          .slice(0, 3)
+          .join(",")
+      : ""
+    const sentiment =
+      typeof body.sentiment === "number" &&
+      Number.isInteger(body.sentiment) &&
+      body.sentiment >= -2 &&
+      body.sentiment <= 2
+        ? body.sentiment
+        : null
 
-    const note = await createNote({ title, content, category, tags, date })
+    const note = await createNote({
+      title,
+      content,
+      category,
+      tags,
+      date,
+      ownCategory,
+      sentiment,
+    })
     // Questions are found by rule, instantly; highlights in the background,
     // so saving returns at once and you can leave the page.
     await syncQuestions([note.id])

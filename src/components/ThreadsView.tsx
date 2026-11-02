@@ -1,17 +1,25 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { TimelineTabs } from "@/components/TimelineTabs"
+import { useState } from "react"
 import Link from "next/link"
 import { EmbedMissingButton } from "@/components/EmbedMissingButton"
 import { ThreadTitle } from "@/components/ThreadTitle"
 import { HighlightKind } from "@/components/HighlightKind"
 import { RemoveFromThreadButton } from "@/components/RemoveFromThreadButton"
 import { AddHighlightToThread } from "@/components/AddHighlightToThread"
+import { AddThoughtToThread } from "@/components/AddThoughtToThread"
+import { RemoveThreadButton } from "@/components/RemoveThreadButton"
+import { NewThread } from "@/components/NewThread"
+import { ThreadTopics } from "@/components/ThreadTopics"
 import { KeepThreadInPlace } from "@/components/KeepThreadInPlace"
 import { describeGap } from "@/features/notes/lib/time"
 import { MATCH, type ThreadView } from "@/features/threads/match"
 import { EntryTitle } from "@/components/EntryTitle"
+
+// a thread's opening words, until it has a title
+const opening = (thread: ThreadView) =>
+  `${thread.members[0].quote.split(/\s+/).slice(0, 5).join(" ")}…`
 
 // "May 14, 2023"
 function fullDate(date: Date) {
@@ -34,12 +42,14 @@ export function ThreadsView({
   const match = useSearchParams().get("match")
   const level =
     match && match in MATCH ? (match as keyof typeof MATCH) : "related"
-  const threads = byLevel[level]
+  // threads you just removed, hidden while the page rebuilds
+  const [hidden, setHidden] = useState<string[]>([])
+  const [removeError, setRemoveError] = useState("")
+  const threads = byLevel[level].filter((t) => !hidden.includes(t.id))
 
   return (
     <div>
-      <TimelineTabs />
-      <div className="pt-10">
+      <div className="pt-12">
         <header className="mb-8 flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
@@ -69,9 +79,23 @@ export function ThreadsView({
           </nav>
         </header>
 
-        <div className="mb-8">
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <NewThread />
           <EmbedMissingButton count={missing} />
         </div>
+        <ThreadTopics
+          topics={threads.map((t) => ({
+            id: t.id,
+            title: t.title,
+            fallback: opening(t),
+            count: t.members.length,
+          }))}
+        />
+        {removeError && (
+          <p role="alert" className="mb-6 text-sm text-rose-300">
+            {removeError}
+          </p>
+        )}
         <KeepThreadInPlace
           version={threads
             .map((t) => `${t.id}:${t.members.map((m) => m.id).join("+")}`)
@@ -100,8 +124,9 @@ export function ThreadsView({
             {threads.map((thread) => (
               <li
                 key={thread.id}
+                id={`thread-${thread.id}`}
                 data-thread={thread.id}
-                className="rounded-2xl border border-white/[0.07] bg-panel p-6"
+                className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-panel p-6 lg:scroll-mt-8"
               >
                 <ThreadTitle
                   quoteIds={thread.members
@@ -118,23 +143,43 @@ export function ThreadsView({
                           memberIds: thread.members.map((m) => m.id),
                         }
                   }
-                  fallback={`${thread.members[0].quote.split(/\s+/).slice(0, 5).join(" ")}…`}
+                  fallback={opening(thread)}
+                  shareAs={thread.id}
                 />
                 <div className="mb-5 mt-2 flex flex-wrap items-center justify-between gap-2">
-                  <AddHighlightToThread
-                    thread={{
-                      id: thread.id,
-                      kind: thread.kind,
-                      questionId: thread.questionId,
-                      memberIds: thread.members.map((m) => m.id),
-                    }}
-                  />
+                  <span className="flex flex-wrap items-center gap-2">
+                    <AddHighlightToThread
+                      thread={{
+                        id: thread.id,
+                        kind: thread.kind,
+                        questionId: thread.questionId,
+                        memberIds: thread.members.map((m) => m.id),
+                      }}
+                    />
+                    <RemoveThreadButton
+                      onHide={(hide, error) => {
+                        setRemoveError(
+                          error ? `Couldn’t remove a thread: ${error}` : "",
+                        )
+                        setHidden((ids) =>
+                          hide
+                            ? [...ids, thread.id]
+                            : ids.filter((id) => id !== thread.id),
+                        )
+                      }}
+                      thread={{
+                        id: thread.id,
+                        kind: thread.kind,
+                        questionId: thread.questionId,
+                        memberIds: thread.members.map((m) => m.id),
+                      }}
+                    />
+                  </span>
                   <span className="font-mono text-[11px] uppercase tracking-widest text-stone-500">
-                    {thread.members.length} moments ·{" "}
-                    {describeGap(
-                      thread.members[0].date,
-                      thread.members.at(-1)!.date,
-                    )}
+                    {thread.members.length}{" "}
+                    {thread.members.length === 1 ? "moment" : "moments"}
+                    {thread.members.length > 1 &&
+                      ` · ${describeGap(thread.members[0].date, thread.members.at(-1)!.date) ?? "same day"}`}
                   </span>
                 </div>
 
@@ -191,6 +236,14 @@ export function ThreadsView({
                       </li>
                     )
                   })}
+                  <AddThoughtToThread
+                    thread={{
+                      id: thread.id,
+                      kind: thread.kind,
+                      questionId: thread.questionId,
+                      memberIds: thread.members.map((m) => m.id),
+                    }}
+                  />
                 </ol>
               </li>
             ))}

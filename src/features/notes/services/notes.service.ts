@@ -8,6 +8,7 @@ import {
   isBuiltinCategory,
   parsePurposes,
 } from "@/features/notes/lib/topics"
+import { stripInline } from "@/features/notes/lib/markdown"
 
 export async function createNote(data: {
   title: string
@@ -15,6 +16,8 @@ export async function createNote(data: {
   category: string
   tags: string
   date: Date
+  ownCategory?: string
+  sentiment?: number | null
 }) {
   return prisma.note.create({
     data,
@@ -99,6 +102,14 @@ export async function saveAnalysis(
     }[]
   },
 ) {
+  // highlights are kept without formatting markers (**bold**, *italic*)
+  analysis = {
+    ...analysis,
+    highlights: analysis.highlights.map((h) => ({
+      ...h,
+      quote: stripInline(h.quote),
+    })),
+  }
   const updateNote = prisma.note.update({
     where: { id: noteId },
     data: {

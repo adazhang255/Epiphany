@@ -5,7 +5,8 @@ function escapeRegExp(text: string) {
 }
 
 // Locate a highlight inside the note body. Tolerates differences in case,
-// whitespace and curly vs straight quotes, which LLMs tend to introduce.
+// whitespace and curly vs straight quotes, which LLMs tend to introduce, and
+// formatting markers in the text that the highlight is kept without.
 export function findQuote(content: string, quote: string): QuoteRange | null {
   const trimmed = quote
     .trim()
@@ -20,12 +21,17 @@ export function findQuote(content: string, quote: string): QuoteRange | null {
     return { start: exact, end: exact + trimmed.length }
   }
 
+  // formatting markers (**bold**, *italic*) in the text may sit between
+  // any of the quote's characters: highlights are kept without them
+  const formatted = /[*_]/.test(content) && !/[*_]/.test(trimmed)
+  const char = (c: string) =>
+    escapeRegExp(c).replace(/["“”]/g, '["“”]').replace(/['‘’]/g, "['‘’]")
   const pattern = trimmed
     .split(/\s+/)
     .map((word) =>
-      escapeRegExp(word).replace(/["“”]/g, '["“”]').replace(/['‘’]/g, "['‘’]"),
+      formatted ? [...word].map(char).join("[*_]{0,2}") : char(word),
     )
-    .join("\\s+")
+    .join(formatted ? "[*_]*\\s+[*_]*" : "\\s+")
   const match = new RegExp(pattern, "i").exec(content)
 
   return match

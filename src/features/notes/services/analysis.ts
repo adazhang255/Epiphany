@@ -6,6 +6,7 @@ import { analyzeNote } from "@/features/notes/services/ollama.service"
 import { scheduleToneFill } from "@/features/notes/services/tone-queue"
 import { scheduleTitleFill } from "@/features/notes/services/title-queue"
 import { isUntitled } from "@/features/notes/lib/titles"
+import { quoteIn } from "@/features/notes/lib/markdown"
 
 // Read one entry with the local model and store everything: highlights,
 // topics and embeddings. (Its category follows from its highlights.) Tone follows a few
@@ -29,6 +30,8 @@ export async function runAnalysis(noteId: string, model?: string) {
     noteEmbedding: vectors[0],
     highlights: analysis.highlights.map((h, i) => ({
       ...h,
+      // kept without formatting markers (**bold**, *italic*)
+      quote: quoteIn(note.content, h.quote),
       embedding: vectors[i + 1],
     })),
   })

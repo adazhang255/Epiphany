@@ -10,9 +10,9 @@ import {
   type LegendItem,
 } from "@/features/trackers/legend"
 
-// Trackers: day-by-day questions you answer yourself on Custom ("How am I
-// feeling?"), apart from your entries. Ask and the writer profile read them
-// as context (see trackerContext).
+// Trackers: day-by-day questions you answer yourself on Stats → Trackers
+// ("How am I feeling?"), apart from your entries. Ask and the writer profile
+// read them as context (see trackerContext).
 
 export type TrackerView = {
   id: string

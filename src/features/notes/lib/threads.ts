@@ -1,4 +1,3 @@
-import { cosine } from "@/features/notes/lib/similarity"
 import { dayKey } from "@/features/notes/lib/time"
 
 export type ThreadQuote = {
@@ -31,30 +30,61 @@ function normalize(text: string) {
     .trim()
 }
 
+// Which pairs of highlights are alike (cosine similarity of their
+// embeddings at least `floor`), with how alike. Worked out once and shared by
+// every match level: each per-highlight step (its day, its words, its
+// embedding's length) is done once, not for every pair.
+export type Similar = { i: number; j: number; sim: number }[]
+
+export function similarPairs(quotes: ThreadQuote[], floor: number): Similar {
+  const n = quotes.length
+  const days = quotes.map((q) => dayKey(q.date))
+  const words = quotes.map((q) => normalize(q.quote))
+  // embeddings scaled to length 1, so similarity is a plain dot product
+  const dims = quotes[0]?.embedding.length ?? 0
+  const unit = quotes.map((q) => {
+    const v = new Float64Array(dims)
+    let len = 0
+    for (let k = 0; k < dims; k++) len += (q.embedding[k] ?? 0) ** 2
+    len = Math.sqrt(len)
+    if (len && q.embedding.length === dims)
+      for (let k = 0; k < dims; k++) v[k] = q.embedding[k] / len
+    return v
+  })
+  const pairs: Similar = []
+  for (let i = 0; i < n; i++) {
+    const a = unit[i]
+    for (let j = i + 1; j < n; j++) {
+      // same-day echoes (or copies) aren't evolution
+      if (days[i] === days[j]) continue
+      // a pasted copy repeats a thought; it doesn't develop it
+      if (words[i] === words[j]) continue
+      const b = unit[j]
+      let sim = 0
+      for (let k = 0; k < dims; k++) sim += a[k] * b[k]
+      if (sim >= floor) pairs.push({ i, j, sim })
+    }
+  }
+  return pairs
+}
+
 // Group highlights that say similar things on different days into threads.
 // Highlights are linked when their embeddings' cosine similarity reaches
-// `threshold`; linked groups (connected components) become threads.
+// `threshold`; linked groups (connected components) become threads. Pass
+// `pairs` from similarPairs (at or below this threshold) to reuse them.
 export function buildThreads(
   quotes: ThreadQuote[],
   threshold: number,
+  pairs: Similar = similarPairs(quotes, threshold),
 ): Thread[] {
   const parent = quotes.map((_, i) => i)
   const find = (i: number): number =>
     parent[i] === i ? i : (parent[i] = find(parent[i]))
   const sims = new Map<string, number>()
-
-  for (let i = 0; i < quotes.length; i++) {
-    for (let j = i + 1; j < quotes.length; j++) {
-      // same-day echoes (or copies) aren't evolution
-      if (dayKey(quotes[i].date) === dayKey(quotes[j].date)) continue
-      // a pasted copy repeats a thought; it doesn't develop it
-      if (normalize(quotes[i].quote) === normalize(quotes[j].quote)) continue
-      const sim = cosine(quotes[i].embedding, quotes[j].embedding)
-      if (sim >= threshold) {
-        sims.set(`${i}:${j}`, sim)
-        parent[find(i)] = find(j)
-      }
-    }
+  for (const { i, j, sim } of pairs) {
+    if (sim < threshold) continue
+    sims.set(`${i}:${j}`, sim)
+    parent[find(i)] = find(j)
   }
 
   const groups = new Map<number, number[]>()

@@ -1,5 +1,6 @@
 import { titleText } from "@/features/notes/lib/titles"
 import type { ExportEntry } from "@/features/export/docx"
+import { plainText, shownRuns } from "@/features/notes/lib/markdown"
 
 // Entries as a diary, in formatted text (HTML) to preview on the Export page
 // and paste into a Google Doc: each entry opens with its date (the strongest
@@ -25,6 +26,17 @@ export function spanOf(entries: ExportEntry[]) {
   return first === last ? first : `${first} – ${last}`
 }
 
+// a paragraph with its bold, italic and bullets (see lib/markdown)
+const formatted = (para: string) =>
+  shownRuns(para)
+    .map(({ text, bold, italic }) => {
+      let t = esc(text).replace(/\n/g, "<br>")
+      if (italic) t = `<i>${t}</i>`
+      if (bold) t = `<b>${t}</b>`
+      return t
+    })
+    .join("")
+
 export const ACCENT = "#8a5a1f"
 const FONT = "Georgia, 'Times New Roman', serif"
 const BODY = `font-family:${FONT};font-size:12pt;line-height:1.6;color:#222222;margin:0 0 10pt 0`
@@ -35,7 +47,7 @@ export function entriesHtml(entries: ExportEntry[], title: string) {
       const paras = e.content
         .trim()
         .split(/\n\s*\n/)
-        .map((p) => `<p style="${BODY}">${esc(p).replace(/\n/g, "<br>")}</p>`)
+        .map((p) => `<p style="${BODY}">${formatted(p)}</p>`)
         .join("")
       const name = titleText(e.title)
       return `${
@@ -53,7 +65,7 @@ export function entriesText(entries: ExportEntry[]) {
   return entries
     .map(
       (e) =>
-        `${diaryDate(e.date).toUpperCase()}\n${titleText(e.title)}\n\n${e.content.trim()}`,
+        `${diaryDate(e.date).toUpperCase()}\n${titleText(e.title)}\n\n${plainText(e.content.trim())}`,
     )
     .join("\n\n* * *\n\n")
 }

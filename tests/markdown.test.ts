@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest"
+import {
+  BOLD,
+  BULLET,
+  ITALIC,
+  MARKER,
+  formatFlags,
+  formatRuns,
+  plainText,
+  quoteIn,
+  stripInline,
+  stripRange,
+} from "@/features/notes/lib/markdown"
+import { findQuote } from "@/features/notes/lib/findQuote"
+
+const shown = (text: string) =>
+  formatRuns(text, formatFlags(text))
+    .filter((r) => !(r.flags & MARKER))
+    .map((r) => {
+      let t = r.flags & BULLET ? "•" : r.text
+      if (r.flags & BOLD) t = `<b>${t}</b>`
+      if (r.flags & ITALIC) t = `<i>${t}</i>`
+      return t
+    })
+    .join("")
+
+describe("formatting", () => {
+  it("bold, italic and both", () => {
+    expect(shown("a **b** c")).toBe("a <b>b</b> c")
+    expect(shown("a *b* _c_")).toBe("a <i>b</i> <i>c</i>")
+    expect(shown("*a **b** c*")).toBe("<i>a </i><i><b>b</b></i><i> c</i>")
+  })
+  it("bullets", () => {
+    expect(shown("- one\n* two\n-not")).toBe("• one\n• two\n-not")
+  })
+  it("leaves lone stars and snake_case alone", () => {
+    for (const t of ["2*3*4", "a * b * c", "snake_case_name", "**", "** x**"])
+      expect(shown(t)).toBe(t)
+  })
+  it("keeps one formatted line from running into the next", () => {
+    expect(shown("**a\nb**")).toBe("**a\nb**")
+  })
+  it("strips markers for highlights and snippets", () => {
+    expect(stripInline("is **very** *good*")).toBe("is very good")
+    expect(stripInline("**cut off")).toBe("cut off")
+    expect(plainText("- **one**\n- two")).toBe("• one\n• two")
+  })
+  it("strips a piece of the text using the whole text's markers", () => {
+    const text = "Today was **very** good, *truly*."
+    const start = text.indexOf("very")
+    const end = text.indexOf("truly") + 5
+    expect(stripRange(text, start, end)).toBe("very good, truly")
+    expect(quoteIn(text, "very** good, *truly")).toBe("very good, truly")
+  })
+  it("finds a highlight kept without markers", () => {
+    const text = "It is **very**, *truly* good."
+    const r = findQuote(text, "is very, truly good")!
+    expect(text.slice(r.start, r.end)).toBe("is **very**, *truly* good")
+  })
+  it("keeps every character, so places on screen match the text", () => {
+    const t = "- **a** *b*\nc"
+    expect(
+      formatRuns(t, formatFlags(t))
+        .map((r) => r.text)
+        .join(""),
+    ).toBe(t)
+  })
+})
+
+import {
+  continueList,
+  toggleBullets,
+  toggleWrap,
+  type TextEdit,
+} from "@/features/notes/lib/markdownEdit"
+
+// "[" and "]" in the text mark the selection, before and after the edit
+function after(
+  t: string,
+  edit: (v: string, s: number, e: number) => TextEdit | null,
+) {
+  const s = t.indexOf("[")
+  const e = t.indexOf("]") - 1
+  const v = t.replace("[", "").replace("]", "")
+  const ed = edit(v, s, e)
+  if (!ed) return null
+  const out = v.slice(0, ed.start) + ed.insert + v.slice(ed.end)
+  return `${out.slice(0, ed.from)}[${out.slice(ed.from, ed.to)}]${out.slice(ed.to)}`
+}
+const bold = (v: string, s: number, e: number) => toggleWrap(v, s, e, "**")
+const italic = (v: string, s: number, e: number) => toggleWrap(v, s, e, "*")
+
+describe("formatting buttons", () => {
+  it("bold and italic wrap the selection, and unwrap it", () => {
+    expect(after("a [word ]b", bold)).toBe("a **[word]** b")
+    expect(after("a **[word]** b", bold)).toBe("a [word] b")
+    expect(after("a [**word**] b", bold)).toBe("a [word] b")
+    expect(after("a *[word]* b", italic)).toBe("a [word] b")
+    // italic inside bold doesn't take bold's stars for its own
+    expect(after("**[word]**", italic)).toBe("***[word]***")
+    expect(after("a[]b", bold)).toBe("a**[]**b")
+  })
+  it("bullets on the selected lines, and off again", () => {
+    expect(after("x\n[one\ntwo]\ny", toggleBullets)).toBe(
+      "x\n[- one\n- two]\ny",
+    )
+    expect(after("[- one\n- two]", toggleBullets)).toBe("[one\ntwo]")
+    expect(after("a\n[]", toggleBullets)).toBe("a\n- []")
+  })
+  it("Enter continues a list, and ends it on an empty bullet", () => {
+    expect(after("- one[]", continueList)).toBe("- one\n- []")
+    expect(after("- one\n- []", continueList)).toBe("- one\n[]")
+    expect(after("plain[]", continueList)).toBeNull()
+  })
+})

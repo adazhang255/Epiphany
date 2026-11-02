@@ -4,6 +4,7 @@ import { PUBLIC_SITE } from "@/lib/site-mode"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
+import { shareThreadTitle } from "@/components/threadTitles"
 
 // A thread's title: the name you gave it, or one the local model writes
 // (shown as a placeholder until it's ready). ✎ renames it.
@@ -13,6 +14,7 @@ export function ThreadTitle({
   fallback,
   thread,
   named = false,
+  shareAs,
 }: {
   quoteIds: string[]
   known: string | null
@@ -20,6 +22,8 @@ export function ThreadTitle({
   // set when it can be renamed (not a question's thread)
   thread?: ThreadRef
   named?: boolean
+  // the thread's id, to share the title it gets (see threadTitles)
+  shareAs?: string
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(known)
@@ -38,14 +42,16 @@ export function ThreadTitle({
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return
-        if (d?.title) setTitle(d.title)
-        else setFailed(true)
+        if (d?.title) {
+          setTitle(d.title)
+          if (shareAs) shareThreadTitle(shareAs, d.title)
+        } else setFailed(true)
       })
       .catch(() => alive && setFailed(true))
     return () => {
       alive = false
     }
-  }, [ids, known, quoteIds.length])
+  }, [ids, known, quoteIds.length, shareAs])
 
   async function save(name: string) {
     if (!thread) return
@@ -71,7 +77,10 @@ export function ThreadTitle({
       )
       return
     }
-    if (name.trim()) setTitle(name.trim())
+    if (name.trim()) {
+      setTitle(name.trim())
+      if (shareAs) shareThreadTitle(shareAs, name.trim())
+    }
     setEditing(false)
     router.refresh()
   }

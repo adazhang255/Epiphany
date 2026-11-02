@@ -6,7 +6,6 @@ import { useMemo } from "react"
 import { useTopicSearch, useToday } from "@/components/useTopicSearch"
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import type { QuestionView } from "@/components/QuestionCard"
-import { TimelineTabs } from "@/components/TimelineTabs"
 import { ScrollToDay } from "@/components/ScrollToDay"
 import { RemoveHighlightButton } from "@/components/RemoveHighlightButton"
 import { AddToThreadButton } from "@/components/AddToThreadButton"
@@ -18,7 +17,6 @@ import {
   dayKey,
   describeAgo,
   formatDay,
-  timeOfDay,
   formatMonth,
   monthKey,
 } from "@/features/notes/lib/time"
@@ -37,6 +35,7 @@ import { HighlightKind } from "@/components/HighlightKind"
 import { OnThisDay } from "@/components/OnThisDay"
 import { QuestionsSection } from "@/components/QuestionsSection"
 import { EntryTitle } from "@/components/EntryTitle"
+import { EntryTime } from "@/components/EntryTime"
 
 // What the timeline needs of each entry (the page loads it once; filters,
 // order and search are applied here, in the browser).
@@ -138,7 +137,6 @@ function QuoteCard({
 }
 
 function NoteEntry({ note }: { note: TimelineNote }) {
-  const time = timeOfDay(note.date, note.createdAt)
   const shown = note.quotes.slice(0, VISIBLE_HIGHLIGHTS)
   const hidden = note.quotes.slice(VISIBLE_HIGHLIGHTS)
   const grid = "grid gap-3 sm:grid-cols-3"
@@ -152,9 +150,9 @@ function NoteEntry({ note }: { note: TimelineNote }) {
         >
           <EntryTitle title={note.title} />
         </Link>
-        {time && (
-          <span className="font-mono text-[11px] text-stone-500">{time}</span>
-        )}
+        <span className="font-mono text-[11px] text-stone-500">
+          <EntryTime date={note.date} createdAt={note.createdAt} />
+        </span>
         <PurposeBadges purposes={note.purposes} />
         <DeleteEntryButton
           noteId={note.id}
@@ -354,8 +352,7 @@ export function TimelineView({
 
   return (
     <div>
-      <TimelineTabs />
-      <div className="pt-10">
+      <div className="pt-12">
         <RemoveDuplicatesButton groups={duplicates} />
         <header className="mb-10">
           <div className="flex items-center justify-between gap-4">

@@ -1,3 +1,5 @@
+import { stripInline } from "@/features/notes/lib/markdown"
+
 // Find the sentences in an entry that ask or wonder something. A fixed rule
 // (not the AI), so it's instant and never misses one:
 // - "question": the sentence contains a question mark
@@ -12,7 +14,8 @@ const MIN_CHARS = 6
 const MAX_CHARS = 400
 
 export function extractQuestions(content: string): FoundQuestion[] {
-  const sentences = content
+  // read without formatting markers (**bold**, *italic*)
+  const sentences = stripInline(content)
     .split(/\n+/)
     .flatMap((line) => line.split(/(?<=[.!?…])["”’)]*\s+/))
     .map((s) => s.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "").trim())

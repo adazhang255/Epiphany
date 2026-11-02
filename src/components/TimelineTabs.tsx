@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   STATS_TABS,
-  TIMELINE_TABS,
   type SectionTab,
 } from "@/components/sections"
 
@@ -35,10 +34,6 @@ function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
       })}
     </nav>
   )
-}
-
-export function TimelineTabs() {
-  return <SectionTabs tabs={TIMELINE_TABS} label="Timeline views" />
 }
 
 export function StatsTabs() {

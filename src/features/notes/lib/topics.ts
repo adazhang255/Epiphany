@@ -157,14 +157,13 @@ export function parsePurposes(value: string): PurposeName[] {
 }
 
 // An entry's category, read from its highlights: the most common type among
-// them (Questions aside). A tie keeps both, in the order they first appear.
+// them, Questions included. A tie keeps both, in the order they first appear.
 // No highlights, no category: entries aren't labelled as a whole, so a note
 // with nothing meaningful in it stays uncategorized.
 export function purposesFromHighlights(categories: string[]): string[] {
   const counts = new Map<string, number>()
   for (const c of categories) {
     const type = highlightType(c)
-    if (type === "Question") continue
     counts.set(type, (counts.get(type) ?? 0) + 1)
   }
   const top = Math.max(0, ...counts.values())

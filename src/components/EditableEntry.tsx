@@ -30,6 +30,8 @@ import {
   splitList,
 } from "@/features/notes/lib/topics"
 import { TrashIcon } from "@/components/TrashIcon"
+import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import { clockTime } from "@/features/notes/lib/time"
 
 const isoDay = (iso: string) => {
   const d = new Date(iso)
@@ -69,6 +71,8 @@ const draftOf = (note: Note) => ({
   title: plainTitle(note.title),
   content: note.content,
   date: isoDay(note.date),
+  // "HH:MM", or "" if it has no time of its own
+  time: clockTime(note.date),
   ownCategory: splitList(note.ownCategory),
 })
 
@@ -522,7 +526,7 @@ export function EditableEntry({
           </p>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_170px_130px]">
         <input
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
@@ -537,6 +541,14 @@ export function EditableEntry({
           aria-label="Date"
           className={`${input} [color-scheme:dark]`}
         />
+        <input
+          type="time"
+          value={draft.time ?? ""}
+          onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+          aria-label="Time (optional)"
+          title="Time (optional)"
+          className={`${input} [color-scheme:dark]`}
+        />
       </div>
 
       <div className="space-y-3">
@@ -546,7 +558,6 @@ export function EditableEntry({
             <CategoryPicker
               custom={custom}
               selected={shownCategories}
-              withQuestion={false}
               onPick={toggleCategory}
             />
             <p className="text-xs text-stone-500">
@@ -623,6 +634,7 @@ export function EditableEntry({
         </div>
       </div>
 
+      <FormatBar box={box} className="-mb-3 justify-end" />
       {/* the text box sits on a copy of the text with the highlights
           tinted in, laid out identically, so they show while you edit */}
       <div ref={wrap} className="relative">
@@ -659,6 +671,7 @@ export function EditableEntry({
           }}
           onSelect={readSelection}
           onKeyDown={(e) => {
+            if (formatKeyDown(e)) return setClickedInto(false)
             // typing (not just moving around) puts the picker away
             if (
               e.key.length === 1 ||

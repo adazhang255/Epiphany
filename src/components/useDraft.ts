@@ -12,10 +12,11 @@ export const NEW_ENTRY_DRAFT = "draft:new-entry"
 export type NewEntryDraft = {
   title: string
   date: string
+  time?: string // "HH:MM" (Write only)
   content: string
-  // chosen on the notebook's blank page
   categories?: string[]
   tone?: number | null
+  // marked on the notebook's blank page
   marks?: { key: string; category: string }[]
   ranges?: Record<string, { start: number; end: number }>
 }

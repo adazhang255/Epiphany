@@ -38,7 +38,10 @@ import { DeleteEntryButton } from "@/components/DeleteEntryButton"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { NotebookTitle } from "@/components/NotebookTitle"
 import { OnTop } from "@/components/OnTop"
-import { timeOfDay as entryTime } from "@/features/notes/lib/time"
+import { EntryTime } from "@/components/EntryTime"
+import { Formatted } from "@/components/Formatted"
+import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import { formatFlags } from "@/features/notes/lib/markdown"
 import {
   NEW_ENTRY_DRAFT,
   confirmDiscard,
@@ -75,9 +78,6 @@ function longDate(iso: string) {
     year: "numeric",
   })
 }
-
-const timeOfDay = (note: NotebookNote) =>
-  entryTime(note.date, note.createdAt)
 
 // One entry as one sheet of the same ruled paper as the Write page: red
 // margin, binder holes, text on the lines, a page number at the foot. Short
@@ -227,7 +227,6 @@ function Page({
               <CategoryPicker
                 custom={custom}
                 selected={chosen}
-                withQuestion={false}
                 onPick={choose}
               />
               {saveError && (
@@ -246,9 +245,15 @@ function Page({
                   day: "numeric",
                   year: "numeric",
                 })}
-                {timeOfDay(note) && " · "}
+                <EntryTime
+                  date={note.date}
+                  createdAt={note.createdAt}
+                  before=" · "
+                />
               </span>
-              {timeOfDay(note)}
+              <span className="hidden sm:inline">
+                <EntryTime date={note.date} createdAt={note.createdAt} />
+              </span>
             </span>
             {!PUBLIC_SITE && (
               <Link
@@ -292,11 +297,21 @@ function MarkedText({
         f.range !== null,
     )
     .sort((a, b) => a.range.start - b.range.start)
+  const flags = formatFlags(text)
   const parts: React.ReactNode[] = []
   let at = 0
   for (const { h, range } of found) {
     if (range.start < at) continue // overlaps one already shown
-    if (range.start > at) parts.push(text.slice(at, range.start))
+    if (range.start > at)
+      parts.push(
+        <Formatted
+          key={`t${at}`}
+          text={text}
+          flags={flags}
+          start={at}
+          end={range.start}
+        />,
+      )
     const type = highlightType(h.category)
     const color = categoryColor(type)
     parts.push(
@@ -313,12 +328,17 @@ function MarkedText({
           boxShadow: `inset 0 -2px 0 ${tint(color, 0.8)}`,
         }}
       >
-        {text.slice(range.start, range.end)}
+        <Formatted
+          text={text}
+          flags={flags}
+          start={range.start}
+          end={range.end}
+        />
       </mark>,
     )
     at = range.end
   }
-  parts.push(text.slice(at))
+  parts.push(<Formatted key={`t${at}`} text={text} flags={flags} start={at} />)
   return <>{parts}</>
 }
 
@@ -486,6 +506,8 @@ function BlankPage({
         title: title.trim(),
         content,
         date,
+        ownCategory: categories,
+        sentiment: tone,
       }),
     }).catch(() => null)
     const note = res?.ok ? await res.json().catch(() => null) : null
@@ -494,28 +516,27 @@ function BlankPage({
       return setError("Couldn't save. Is the server running?")
     }
     clearDraft()
-    // what you chose for it: category, tone, highlights
-    const extra = {
-      ...(categories.length ? { ownCategory: categories } : {}),
-      ...(tone !== null ? { sentiment: tone } : {}),
-      ...(items.length
-        ? {
-            addedHighlights: items.map((h) => ({
-              quote: content.slice(ranges[h.id].start, ranges[h.id].end),
-              category: h.category,
-            })),
-          }
-        : {}),
-    }
-    if (Object.keys(extra).length) {
-      await fetch(`/api/notes/${note.id}`, {
+    // the highlights you marked, added now the entry exists
+    let missed = false
+    if (items.length) {
+      const res = await fetch(`/api/notes/${note.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(extra),
+        body: JSON.stringify({
+          addedHighlights: items.map((h) => ({
+            quote: content.slice(ranges[h.id].start, ranges[h.id].end),
+            category: h.category,
+          })),
+        }),
       }).catch(() => null)
+      missed = !res?.ok
     }
     setSaving(false)
     reset()
+    if (missed)
+      setError(
+        "Saved, but the highlights you marked couldn't be added. Mark them again on the entry.",
+      )
     announceAnalysis()
     onSaved()
   }
@@ -551,6 +572,7 @@ function BlankPage({
           aria-label="Title"
           className="min-w-0 flex-1 bg-transparent text-[22px] leading-[30px] text-ink outline-none placeholder:text-stone-600"
         />
+        <FormatBar box={box} className="shrink-0" />
         <input
           type="date"
           value={date}
@@ -595,6 +617,7 @@ function BlankPage({
           }}
           onSelect={readSelection}
           onMouseUp={readSelection}
+          onKeyDown={formatKeyDown}
           onKeyUp={readSelection}
           placeholder="Write here… select words to mark them as a highlight"
           aria-label="Write a new entry"
@@ -623,7 +646,6 @@ function BlankPage({
         <CategoryPicker
           custom={custom}
           selected={categories}
-          withQuestion={false}
           onPick={(c) =>
             setCategories((all) =>
               all.includes(c)

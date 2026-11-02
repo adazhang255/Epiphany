@@ -17,7 +17,6 @@ import {
   describeAgo,
   describeGap,
   formatLongDate,
-  timeOfDay,
 } from "@/features/notes/lib/time"
 import {
   entryCategories,
@@ -31,6 +30,7 @@ import {
 import { isAnalysisPending } from "@/features/notes/services/analysis-queue"
 import { EntryTitle } from "@/components/EntryTitle"
 import { ExportDocsButton } from "@/components/ExportDocsButton"
+import { EntryTime } from "@/components/EntryTime"
 
 type Quote = { id: string; quote: string; category: string; manual: boolean }
 
@@ -116,8 +116,11 @@ export default async function NotePage({
             >
               <p className="pr-32 font-mono text-xs uppercase tracking-[0.2em] text-muted">
                 {formatLongDate(note.date)}
-                {timeOfDay(note.date, note.createdAt) &&
-                  ` · ${timeOfDay(note.date, note.createdAt)}`}{" "}
+                <EntryTime
+                  date={note.date}
+                  createdAt={note.createdAt}
+                  before=" · "
+                />{" "}
                 · {describeAgo(note.date)}
               </p>
               <h1 className="mt-3 font-serif text-4xl leading-tight text-ink sm:text-5xl">

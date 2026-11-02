@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { cleanLegend } from "@/features/trackers/legend"
 import { createTracker, listTrackers } from "@/features/trackers/trackers"
 
-// Trackers (day-by-day questions you answer yourself, on Custom):
+// Trackers (day-by-day questions you answer yourself, on Stats → Trackers):
 //   GET                    → { trackers } (null: run `npm run db:push` once)
 //   POST { name, legend }  → the new tracker
 export async function GET() {

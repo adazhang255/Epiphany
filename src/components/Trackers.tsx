@@ -11,7 +11,7 @@ import {
 import type { TrackerView } from "@/features/trackers/trackers"
 import { DayHeatmap, type HeatmapDay } from "@/components/DayHeatmap"
 
-// Trackers on the Stats overview: day-by-day questions you answer yourself
+// Trackers, on their own Stats tab: day-by-day questions you answer yourself
 // ("How am I feeling?"), apart from your entries. Each is a grid of days like the tone
 // grid on Stats; click a day to give its answer. Ask and the writer profile
 // read them alongside your entries.
@@ -725,7 +725,7 @@ function slideArrows({
 const SLIDE_KEY = "daybyday:slide"
 const WRITING = "writing"
 
-// ---- the "Day by day" section (Stats overview) -----------------------------
+// ---- the "Day by day" section (Trackers tab) ------------------------------
 // One slideshow: your writing first, then each of your trackers; ‹ › moves
 // between them, and this browser keeps showing the one you chose until you
 // pick another. Each tracker's slide is where you answer it, add answers,

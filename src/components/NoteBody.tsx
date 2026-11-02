@@ -2,7 +2,7 @@
 
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useEntryParams } from "@/components/EntryParams"
 import {
   HighlightMenu,
@@ -15,6 +15,8 @@ import {
   categoryGlyph,
   highlightType,
 } from "@/features/notes/lib/topics"
+import { formatFlags } from "@/features/notes/lib/markdown"
+import { Formatted } from "@/components/Formatted"
 
 export type BodyPart =
   | { text: string }
@@ -50,6 +52,19 @@ export function NoteBody({
     () => new Set(parts.flatMap((p) => ("quote" in p ? [p.quote.id] : []))),
   )
   const close = useCallback(() => setMenu(null), [])
+  // the parts cover the whole text in order: formatting is read from it all
+  const content = parts.map((p) => p.text).join("")
+  const flags = useMemo(() => formatFlags(content), [content])
+  const starts: number[] = []
+  parts.reduce((at, p) => (starts.push(at), at + p.text.length), 0)
+  const formatted = (i: number) => (
+    <Formatted
+      text={content}
+      flags={flags}
+      start={starts[i]}
+      end={starts[i] + parts[i].text.length}
+    />
+  )
 
   function onMouseUp() {
     if (readOnly) return
@@ -65,7 +80,7 @@ export function NoteBody({
         className="mt-10 whitespace-pre-wrap font-serif text-[19px] leading-[1.8] text-stone-300"
       >
         {parts.map((part, i) => {
-          if (!("quote" in part)) return <span key={i}>{part.text}</span>
+          if (!("quote" in part)) return <span key={i}>{formatted(i)}</span>
           const type = highlightType(part.quote.category)
           const fresh = justSaved || !initialIds.has(part.quote.id)
           const color = categoryColor(type)
@@ -98,7 +113,7 @@ export function NoteBody({
                 )
               }}
             >
-              {part.text}
+              {formatted(i)}
             </mark>
           )
         })}

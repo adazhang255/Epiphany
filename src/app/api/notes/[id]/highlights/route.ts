@@ -5,6 +5,7 @@ import { findQuote, snapToWords } from "@/features/notes/lib/findQuote"
 import { cleanCategoryName } from "@/features/notes/lib/topics"
 import { embed } from "@/features/notes/services/embeddings.service"
 import { noteHighlights } from "@/features/notes/services/highlights"
+import { stripRange } from "@/features/notes/lib/markdown"
 
 // Mark a passage of an entry yourself: { text, category, start?, end? }. The
 // category is a built-in type or a name of your own. start/end say exactly
@@ -62,7 +63,8 @@ export async function POST(
       { status: 400 },
     )
   }
-  const text = note.content.slice(range.start, range.end)
+  // kept without formatting markers (**bold**, *italic*)
+  const text = stripRange(note.content, range.start, range.end)
   // Re-marking words that are already highlighted replaces those highlights
   // with this one (an answer to a question stays linked to it).
   const overlapping = note.quotes.filter((q) => {

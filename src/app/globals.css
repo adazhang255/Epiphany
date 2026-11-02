@@ -244,3 +244,21 @@ html {
   border: 2px solid #1c1c1d;
 }
 
+
+/* Formatting in an entry's text (see lib/markdown): the ** and * markers stay
+   in the page, so its text matches the entry's, but aren't shown; a bullet
+   line's "-" is drawn as a dot. */
+.md-marker {
+  display: none;
+}
+.md-bullet {
+  position: relative;
+  color: transparent;
+}
+.md-bullet::before {
+  content: "•";
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  color: #a8a29e;
+}

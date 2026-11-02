@@ -7,6 +7,7 @@ import {
   pickTagModel,
 } from "@/features/notes/services/ollama.service"
 import { syncQuestions } from "@/features/questions/sync"
+import { stripRange } from "@/features/notes/lib/markdown"
 
 // "Find answers" on the Questions view, and only there: its own pass, run
 // when you ask, apart from highlights and tone. Questions are never closed;
@@ -141,7 +142,7 @@ async function run() {
         // only text that's really in the entry, word for word
         const range = findQuote(note.content, reply.passage)
         if (!range) continue
-        const passage = note.content.slice(range.start, range.end).trim()
+        const passage = stripRange(note.content, range.start, range.end).trim()
         if (passage.length < MIN_CHARS) continue
         if (await addReply(question.id, note.id, passage)) state.found++
       }

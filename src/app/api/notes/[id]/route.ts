@@ -8,6 +8,7 @@ import { syncQuestions } from "@/features/questions/sync"
 import { enqueueAnalysis } from "@/features/notes/services/analysis-queue"
 import { scheduleToneFill } from "@/features/notes/services/tone-queue"
 import { scheduleTitleFill } from "@/features/notes/services/title-queue"
+import { parseLocalDateTime } from "@/features/notes/lib/time"
 import {
   isAutoTitle,
   isUntitled,
@@ -17,9 +18,11 @@ import {
   deleteWithBackup,
   loadForBackup,
 } from "@/features/notes/services/delete.service"
+import { stripRange } from "@/features/notes/lib/markdown"
 
 // Update an entry: { published?: boolean, purposes?: string[], title?,
-// content?, date?: "YYYY-MM-DD", tags?: string (added to your own,
+// content?, date?: "YYYY-MM-DD", time?: "HH:MM" or "" (none; left out, the
+// entry keeps its time), tags?: string (added to your own,
 // comma-separated) or string[] (the entry's whole set, replacing the AI's),
 // ownCategory?: string[] (the entry's category, chosen by you; [] goes back
 // to the one from its highlights), highlights?: { id, quote }[] (new words
@@ -39,6 +42,7 @@ export async function PATCH(
     title?: unknown
     content?: unknown
     date?: unknown
+    time?: unknown
     tags?: unknown
     ownCategory?: unknown
     highlights?: unknown
@@ -132,11 +136,21 @@ export async function PATCH(
     data.content = body.content.trim()
   }
   if (typeof body.date === "string") {
-    const [y, m, d] = body.date.split("-").map(Number)
-    if (!y || !m || !d) {
+    // the time sent with it ("HH:MM", or "" for none); without one, the
+    // entry keeps the time it had
+    const had = await prisma.note.findUnique({
+      where: { id },
+      select: { date: true },
+    })
+    const date = parseLocalDateTime(
+      body.date,
+      typeof body.time === "string" ? body.time : undefined,
+      had?.date,
+    )
+    if (!date) {
       return NextResponse.json({ error: "Invalid date" }, { status: 400 })
     }
-    data.date = new Date(y, m - 1, d)
+    data.date = date
   }
   // (a change to the highlights alone, e.g. ones marked on the notebook's
   // blank page right after it's saved, is an update too)
@@ -181,7 +195,10 @@ export async function PATCH(
       if (typeof h.id !== "string" || typeof h.quote !== "string") continue
       const found = findQuote(text, h.quote)
       const range = found ? snapToWords(text, found) : null
-      const quote = range ? text.slice(range.start, range.end).trim() : ""
+      // kept without formatting markers (**bold**, *italic*)
+      const quote = range
+        ? stripRange(text, range.start, range.end).trim()
+        : ""
       if (!quote) continue
       changes.push({ id: h.id, quote, category: cleanCategoryName(h.category) })
     }
@@ -222,7 +239,7 @@ export async function PATCH(
       const found = findQuote(text, h.quote)
       if (!found) continue
       const range = snapToWords(text, found)
-      const quote = text.slice(range.start, range.end).trim()
+      const quote = stripRange(text, range.start, range.end).trim()
       if (!quote) continue
       const existing = await prisma.quote.findMany({
         where: { noteId: id },

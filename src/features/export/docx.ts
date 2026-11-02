@@ -1,6 +1,7 @@
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx"
 import { titleText } from "@/features/notes/lib/titles"
 import { ACCENT, diaryDate, spanOf } from "@/features/export/html"
+import { shownRuns } from "@/features/notes/lib/markdown"
 
 // Entries as a diary in a Word document (.docx), which Google Docs opens as
 // a document of its own. The same look as the Export page's preview: each
@@ -13,7 +14,8 @@ export type ExportEntry = { title: string; date: Date; content: string }
 const color = ACCENT.slice(1)
 const BODY = 24 // half-points: 12pt
 
-// paragraphs split on blank lines; single line breaks kept inside them
+// paragraphs split on blank lines; single line breaks kept inside them;
+// bold, italic and bullets as written (see lib/markdown)
 function paragraphs(text: string) {
   return text
     .trim()
@@ -22,12 +24,17 @@ function paragraphs(text: string) {
       (para) =>
         new Paragraph({
           spacing: { after: 200, line: 384 },
-          children: para
-            .split("\n")
-            .map(
-              (line, i) =>
-                new TextRun({ text: line, break: i > 0 ? 1 : undefined }),
+          children: para.split("\n").flatMap((line, i) =>
+            shownRuns(line).map(
+              (run, j) =>
+                new TextRun({
+                  text: run.text,
+                  bold: run.bold || undefined,
+                  italics: run.italic || undefined,
+                  break: i > 0 && j === 0 ? 1 : undefined,
+                }),
             ),
+          ),
         }),
     )
 }

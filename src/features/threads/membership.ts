@@ -104,3 +104,31 @@ export async function removeFromThread(item: string, thread: ThreadRef) {
   await setThread([item], "none")
   return true
 }
+
+// Take a whole thread apart. Its passages are left out of threads (so the
+// automatic grouping doesn't put them back together); a question's thread
+// has its answers unlinked, kept as your highlights (so finding answers
+// won't link them again). The entries and highlights themselves stay.
+export async function removeThread(thread: ThreadRef) {
+  if (thread.kind === "qa") {
+    if (!thread.questionId) return false
+    await prisma.quote.updateMany({
+      where: { replyToId: thread.questionId },
+      data: { replyToId: null, manual: true },
+    })
+    return true
+  }
+  if (thread.kind === "pinned") {
+    // everything carrying its id (and name), including any not listed
+    const match = {
+      OR: [{ thread: thread.id }, { thread: { startsWith: `${thread.id}::` } }],
+    }
+    await prisma.$transaction([
+      prisma.quote.updateMany({ where: match, data: { thread: "none" } }),
+      prisma.question.updateMany({ where: match, data: { thread: "none" } }),
+    ])
+    return true
+  }
+  await setThread(thread.memberIds, "none")
+  return true
+}

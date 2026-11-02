@@ -73,3 +73,25 @@ export function timeOfDay(date: Date | string, createdAt?: Date | string) {
     null
   )
 }
+
+// "HH:MM" (24-hour) of a date, or "" at midnight (no time of its own).
+export function clockTime(date: Date | string) {
+  const d = new Date(date)
+  if (!d.getHours() && !d.getMinutes()) return ""
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+// A local date from "YYYY-MM-DD" and, optionally, "HH:MM". With no time
+// given, the time of `keep` stays (so changing an entry's day doesn't lose
+// its time); "" means no time (midnight). null if the day isn't valid.
+export function parseLocalDateTime(day: string, time?: string, keep?: Date) {
+  const [y, m, d] = day.split("-").map(Number)
+  if (!y || !m || !d) return null
+  const date = new Date(y, m - 1, d)
+  const clock = /^(\d{1,2}):(\d{2})$/.exec(time ?? "")
+  if (clock && +clock[1] < 24 && +clock[2] < 60)
+    date.setHours(+clock[1], +clock[2])
+  else if (time === undefined && keep)
+    date.setHours(keep.getHours(), keep.getMinutes(), keep.getSeconds())
+  return date
+}

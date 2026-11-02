@@ -89,6 +89,7 @@ for (const route of [
   "publish",
   "preview",
   "questions", // only a redirect to the timeline's Question filter
+  "trackers", // your own day-by-day answers
 ]) {
   rmSync(path.join(work, "src/app", route), { recursive: true, force: true })
 }

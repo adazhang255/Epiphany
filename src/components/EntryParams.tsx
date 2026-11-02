@@ -12,12 +12,14 @@ import { usePublicView } from "@/components/usePublicView"
 // can be built once per entry for the public site):
 //   ?h=<highlight>  that highlight is marked and scrolled to
 //   ?saved=1        just written: a "saved" note, highlights sweep in
+//   &missed=highlights  …but the highlights marked before saving weren't added
 //   ?edit=1         open straight into editing
 export function useEntryParams() {
   const params = useSearchParams()
   return {
     activeId: params.get("h") ?? undefined,
     justSaved: params.get("saved") === "1",
+    missedHighlights: params.get("missed") === "highlights",
     edit: params.get("edit") === "1",
   }
 }
@@ -29,11 +31,17 @@ export function EntryArrival({
   highlights: number
   pending: boolean
 }) {
-  const { activeId, justSaved } = useEntryParams()
+  const { activeId, justSaved, missedHighlights } = useEntryParams()
   return (
     <>
       {activeId && <ScrollToHighlight id={activeId} />}
-      {justSaved && <SavedToast highlights={highlights} pending={pending} />}
+      {justSaved && (
+        <SavedToast
+          highlights={highlights}
+          pending={pending}
+          missedHighlights={missedHighlights}
+        />
+      )}
     </>
   )
 }

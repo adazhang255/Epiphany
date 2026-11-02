@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { parseEmbedding } from "@/features/notes/lib/similarity"
 import {
   buildThreads,
+  similarPairs,
   type Thread,
   type ThreadQuote,
 } from "@/features/notes/lib/threads"
@@ -23,6 +24,13 @@ import {
 export { MATCH, type MatchLevel, type ThreadView }
 
 export async function getThreads(level: MatchLevel = "related") {
+  const { byLevel, missing } = await getThreadsAt([level])
+  return { threads: byLevel[level], missing }
+}
+
+// The threads at several match levels at once: everything is loaded, and
+// every pair compared, once (that comparison is most of the work).
+export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
   const [rows, questions] = await Promise.all([
     prisma.quote.findMany({
       include: { note: { select: { id: true, title: true, date: true } } },
@@ -80,13 +88,17 @@ export async function getThreads(level: MatchLevel = "related") {
     ...rows.filter((r) => !r.thread).map(fromQuote),
     ...questions.filter((q) => !q.thread && !highlighted(q)).map(fromQuestion),
   ].filter((m) => m.embedding.length > 0)
-  const auto = buildThreads(free, MATCH[level].threshold)
+  const floor = Math.min(...levels.map((l) => MATCH[l].threshold))
+  const pairs = similarPairs(free, floor)
 
   const ids = (t: Thread) =>
     t.members.map((m) => m.id).filter((id) => !id.startsWith("q-"))
-  const threads: ThreadView[] = [
+  // the same at every level: threads you arranged, and questions' answers
+  const arranged: ThreadView[] = [
     ...[...pinned]
-      .filter(([, members]) => members.length >= 2)
+      // (one you named shows from its first passage, so a thread you just
+      // started is there to add to)
+      .filter(([id, members]) => members.length >= 2 || names.has(id))
       .map(([id, members]) => {
         const t: Thread = {
           id,
@@ -101,12 +113,6 @@ export async function getThreads(level: MatchLevel = "related") {
           named: Boolean(name),
         }
       }),
-    ...auto.map((t) => ({
-      ...t,
-      kind: "auto" as const,
-      title: knownTitle(ids(t)),
-      named: false,
-    })),
     ...questions
       .filter((q) => q.replies.length > 0)
       .map((q) => ({
@@ -126,13 +132,24 @@ export async function getThreads(level: MatchLevel = "related") {
         ],
       })),
   ]
-  // most recently continued first
-  threads.sort(
-    (a, b) =>
-      b.members.at(-1)!.date.getTime() - a.members.at(-1)!.date.getTime(),
-  )
-  return {
-    threads,
-    missing: rows.filter((q) => !q.embedding).length,
+  const byLevel = {} as Record<L, ThreadView[]>
+  for (const level of levels) {
+    const auto = buildThreads(free, MATCH[level].threshold, pairs)
+    const threads: ThreadView[] = [
+      ...arranged,
+      ...auto.map((t) => ({
+        ...t,
+        kind: "auto" as const,
+        title: knownTitle(ids(t)),
+        named: false,
+      })),
+    ]
+    // most recently continued first
+    threads.sort(
+      (a, b) =>
+        b.members.at(-1)!.date.getTime() - a.members.at(-1)!.date.getTime(),
+    )
+    byLevel[level] = threads
   }
+  return { byLevel, missing: rows.filter((q) => !q.embedding).length }
 }

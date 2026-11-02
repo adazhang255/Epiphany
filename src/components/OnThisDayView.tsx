@@ -6,7 +6,8 @@ import { useToday } from "@/components/useTopicSearch"
 import { PurposeBadges } from "@/components/PurposeBadges"
 import { entryCategories } from "@/features/notes/lib/topics"
 import { EntryTitle } from "@/components/EntryTitle"
-import { timeOfDay } from "@/features/notes/lib/time"
+import { plainText } from "@/features/notes/lib/markdown"
+import { EntryTime } from "@/components/EntryTime"
 
 // How far from the exact day an entry still counts as "around this day".
 const WINDOW_DAYS = 3
@@ -229,8 +230,11 @@ function Day({
                             month: "short",
                             day: "numeric",
                           })}
-                          {timeOfDay(note.date, note.createdAt) &&
-                            ` · ${timeOfDay(note.date, note.createdAt)}`}
+                          <EntryTime
+                            date={note.date}
+                            createdAt={note.createdAt}
+                            before=" · "
+                          />
                           {offset !== 0 &&
                             ` · ${Math.abs(offset)} ${Math.abs(offset) === 1 ? "day" : "days"} ${offset < 0 ? "before" : "after"}`}
                         </p>
@@ -246,7 +250,7 @@ function Day({
                           />
                         </div>
                         <p className="mt-2 line-clamp-4 whitespace-pre-wrap font-serif text-[15px] leading-snug text-stone-300">
-                          {quote ? `“${quote.quote}”` : note.content}
+                          {quote ? `“${quote.quote}”` : plainText(note.content)}
                         </p>
                       </Link>
                     </li>

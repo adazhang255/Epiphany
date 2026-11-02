@@ -38,8 +38,7 @@ export default async function CustomPage() {
           </h1>
           <p className="mt-3 max-w-2xl text-stone-400">
             Build a chart from your entries, or ask for one in plain words. Pin
-            the ones worth keeping to the Stats overview. (Trackers, for
-            answering a question each day yourself, are on the overview too.)
+            the ones worth keeping to the Stats overview.
           </p>
         </header>
         <Suspense>

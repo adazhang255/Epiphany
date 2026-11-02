@@ -4,6 +4,7 @@ import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { EntryTitle } from "@/components/EntryTitle"
+import { plainText } from "@/features/notes/lib/markdown"
 
 export type DuplicateCopy = {
   id: string
@@ -117,7 +118,7 @@ function RemoveDuplicatesButtonInner({ groups }: { groups: DuplicateGroup[] }) {
                           {group.content.split(/\s+/).length} words)
                         </summary>
                         <p className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-serif text-[14px] leading-relaxed text-stone-300">
-                          {group.content}
+                          {plainText(group.content)}
                         </p>
                       </details>
 

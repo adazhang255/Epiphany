@@ -16,7 +16,6 @@ export function CategoryPicker({
   selected = [],
   disabledFor = [],
   disabled = false,
-  withQuestion = true,
   allowNew = true,
   onPick,
 }: {
@@ -26,8 +25,6 @@ export function CategoryPicker({
   // can't be picked (e.g. the type a highlight already has)
   disabledFor?: string[]
   disabled?: boolean
-  // Question is a highlight type, not an entry category
-  withQuestion?: boolean
   // offer "+ New" to make a category
   allowNew?: boolean
   onPick: (name: string) => void
@@ -35,7 +32,7 @@ export function CategoryPicker({
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState("")
   const all = [
-    ...HIGHLIGHT_CATEGORIES.filter((c) => withQuestion || c !== "Question"),
+    ...HIGHLIGHT_CATEGORIES,
     ...custom,
     // a name just made here, before it's saved anywhere
     ...selected.filter(

@@ -1,9 +1,15 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ANALYSIS_EVENT } from "@/components/AnalysisIndicator"
 import { Walker } from "@/components/DraggableTimeline"
+import { CategoryPicker } from "@/components/CategoryPicker"
+import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import {
+  SENTIMENT_COLORS,
+  SENTIMENT_LABELS,
+} from "@/features/notes/lib/topics"
 import {
   NEW_ENTRY_DRAFT,
   confirmDiscard,
@@ -25,11 +31,18 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-export function NoteComposer() {
+// `custom`: categories of your own already in use, offered beside the
+// built-in ones
+export function NoteComposer({ custom }: { custom: string[] }) {
   const router = useRouter()
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(today)
+  // "HH:MM", or "" for none given (then the time it's saved is shown)
+  const [time, setTime] = useState("")
   const [content, setContent] = useState("")
+  const box = useRef<HTMLTextAreaElement>(null)
+  const [categories, setCategories] = useState<string[]>([])
+  const [tone, setTone] = useState<number | null>(null)
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
   const [error, setError] = useState("")
 
@@ -45,7 +58,10 @@ export function NoteComposer() {
       setFromDraft(d)
       setTitle(d.title ?? "")
       setDate(d.date || today())
+      setTime(d.time ?? "")
       setContent(d.content ?? "")
+      setCategories(d.categories ?? [])
+      setTone(d.tone ?? null)
       setRestored(Boolean(d.title?.trim() || d.content?.trim()))
     }
     setReady(true)
@@ -58,14 +74,15 @@ export function NoteComposer() {
     const marked =
       d && d.content === content ? { marks: d.marks, ranges: d.ranges } : {}
     return {
-      categories: d?.categories,
-      tone: d?.tone,
+      categories,
+      tone,
       ...marked,
       title,
       date,
+      time,
       content,
     }
-  }, [title, date, content, fromDraft])
+  }, [title, date, time, content, categories, tone, fromDraft])
   const clearDraft = useDraftAutosave(NEW_ENTRY_DRAFT, draft, ready)
   useUnsavedWarning(draft !== null && status === "idle")
 
@@ -75,6 +92,9 @@ export function NoteComposer() {
     setFromDraft(null)
     setTitle("")
     setContent("")
+    setCategories([])
+    setTone(null)
+    setTime("")
     setDate(today())
     setRestored(false)
   }
@@ -91,7 +111,14 @@ export function NoteComposer() {
     const res = await fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content, date }),
+      body: JSON.stringify({
+        title,
+        content,
+        date,
+        time,
+        ownCategory: categories,
+        sentiment: tone,
+      }),
     })
     if (!res.ok) {
       setStatus("idle")
@@ -99,31 +126,29 @@ export function NoteComposer() {
       return
     }
     const note = (await res.json()) as { id: string }
-    // what was chosen for it on the notebook's blank page, if this draft
-    // came from there: category, tone, highlights
-    const extra = {
-      ...(draft?.categories?.length ? { ownCategory: draft.categories } : {}),
-      ...(draft?.tone != null ? { sentiment: draft.tone } : {}),
-      ...(draft?.marks?.length && draft.ranges
-        ? {
-            addedHighlights: draft.marks
-              .filter((m) => draft.ranges?.[m.key])
-              .map((m) => ({
-                quote: content.slice(
-                  draft.ranges![m.key].start,
-                  draft.ranges![m.key].end,
-                ),
-                category: m.category,
-              })),
-          }
-        : {}),
-    }
-    if (Object.keys(extra).length) {
-      await fetch(`/api/notes/${note.id}`, {
+    // highlights marked on the notebook's blank page, if this draft came
+    // from there (added once the entry exists; if that fails, the entry
+    // page says so)
+    const marked =
+      draft?.marks?.length && draft.ranges
+        ? draft.marks
+            .filter((m) => draft.ranges?.[m.key])
+            .map((m) => ({
+              quote: content.slice(
+                draft.ranges![m.key].start,
+                draft.ranges![m.key].end,
+              ),
+              category: m.category,
+            }))
+        : []
+    let missed = false
+    if (marked.length) {
+      const res = await fetch(`/api/notes/${note.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(extra),
+        body: JSON.stringify({ addedHighlights: marked }),
       }).catch(() => null)
+      missed = !res?.ok
     }
     clearDraft()
 
@@ -132,7 +157,7 @@ export function NoteComposer() {
     window.dispatchEvent(new Event(ANALYSIS_EVENT))
     setStatus("saved")
     await new Promise((r) => setTimeout(r, 700))
-    router.push(`/notes/${note.id}?saved=1`)
+    router.push(`/notes/${note.id}?saved=1${missed ? "&missed=highlights" : ""}`)
   }
 
   const inputClass =
@@ -140,7 +165,7 @@ export function NoteComposer() {
 
   return (
     <form onSubmit={save} className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-[1fr_170px]">
+      <div className="grid gap-4 sm:grid-cols-[1fr_170px_130px]">
         <label className="block">
           <span className="mb-1.5 block text-sm text-stone-400">Title</span>
           <input
@@ -159,17 +184,85 @@ export function NoteComposer() {
             className={inputClass}
           />
         </label>
+        <label className="block">
+          <span className="mb-1.5 block text-sm text-stone-400">
+            Time <span className="text-stone-600">(optional)</span>
+          </span>
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className={`${inputClass} [color-scheme:dark]`}
+          />
+        </label>
       </div>
 
-      <label className="block">
-        <span className="mb-1.5 block text-sm text-stone-400">Entry</span>
+      <div>
+        <div className="mb-1.5 flex items-end justify-between gap-3">
+          <label htmlFor="entry-text" className="text-sm text-stone-400">
+            Entry
+          </label>
+          <FormatBar box={box} />
+        </div>
         <textarea
+          id="entry-text"
+          ref={box}
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={formatKeyDown}
           rows={12}
           className="notebook w-full resize-y rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
         />
-      </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="text-sm text-stone-400">Category</span>
+        <CategoryPicker
+          custom={custom}
+          selected={categories}
+          onPick={(c) =>
+            setCategories((all) =>
+              all.includes(c)
+                ? all.filter((x) => x !== c)
+                : [...all, c].slice(-3),
+            )
+          }
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="text-sm text-stone-400">Tone</span>
+        <div
+          role="radiogroup"
+          aria-label="Overall tone"
+          className="flex flex-wrap gap-1"
+        >
+          {[-2, -1, 0, 1, 2].map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={tone === n}
+              onClick={() => setTone((t) => (t === n ? null : n))}
+              className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition ${
+                tone === n
+                  ? "bg-white/15 text-ink ring-1 ring-white/30"
+                  : "text-stone-300 hover:bg-white/10"
+              }`}
+            >
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full"
+                style={{ background: SENTIMENT_COLORS[n] }}
+              />
+              {SENTIMENT_LABELS[n]}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-stone-500">
+          (left blank, your local AI reads it)
+        </span>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {PROMPTS.map((prompt) => (

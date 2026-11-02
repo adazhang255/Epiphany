@@ -1,8 +1,10 @@
 import Link from "next/link"
 import { PurposeBadges } from "@/components/PurposeBadges"
-import { dayKey, timeOfDay } from "@/features/notes/lib/time"
+import { dayKey } from "@/features/notes/lib/time"
+import { EntryTime } from "@/components/EntryTime"
 import { entryCategories } from "@/features/notes/lib/topics"
 import { EntryTitle } from "@/components/EntryTitle"
+import { plainText } from "@/features/notes/lib/markdown"
 
 type Memory = {
   id: string
@@ -129,8 +131,11 @@ export function OnThisDay({
                       day: "numeric",
                       year: "numeric",
                     })}
-                    {timeOfDay(note.date, note.createdAt) &&
-                      ` · ${timeOfDay(note.date, note.createdAt)}`}
+                    <EntryTime
+                      date={note.date}
+                      createdAt={note.createdAt}
+                      before=" · "
+                    />
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="font-serif text-lg text-stone-100">
@@ -144,7 +149,7 @@ export function OnThisDay({
                     />
                   </div>
                   <p className="mt-2 line-clamp-3 font-serif text-[15px] leading-snug text-stone-300">
-                    {quote ? `“${quote.quote}”` : note.content}
+                    {quote ? `“${quote.quote}”` : plainText(note.content)}
                   </p>
                 </Link>
               </li>
