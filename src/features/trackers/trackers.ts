@@ -1,3 +1,4 @@
+import { offerUndo } from "@/features/undo/undo"
 import { prisma } from "@/lib/prisma"
 import {
   chatJSON,
@@ -5,9 +6,14 @@ import {
 } from "@/features/notes/services/ollama.service"
 import {
   cleanLegend,
+  formatScale,
   PALETTE,
+  parseLegend,
   scaleColors,
+  scaleValue,
+  storeLegend,
   type LegendItem,
+  type Scale,
 } from "@/features/trackers/legend"
 
 // Trackers: day-by-day questions you answer yourself on Stats → Trackers
@@ -17,16 +23,22 @@ import {
 export type TrackerView = {
   id: string
   name: string
+  // set answers to pick from; or, for a scale, none
   legend: LegendItem[]
-  marks: Record<string, string> // YYYY-MM-DD → legend key
+  // a scale: any number in a range, instead of answers
+  scale: Scale | null
+  // YYYY-MM-DD → legend key (or, for a scale, the number)
+  marks: Record<string, string>
 }
 
-const parse = (json: string) => {
-  try {
-    return cleanLegend(JSON.parse(json))
-  } catch {
-    return []
-  }
+// what a tracker is answered with: set answers, or a scale
+export type TrackerKind = { legend: LegendItem[] } | { scale: Scale }
+
+// whether a day's stored answer is one the tracker still has
+function fits(kind: TrackerKind, value: string) {
+  return "scale" in kind
+    ? scaleValue(kind.scale, value) !== null
+    : kind.legend.some((l) => l.key === value)
 }
 
 // null when the database doesn't have the tracker tables yet (run
@@ -40,7 +52,7 @@ export async function listTrackers(): Promise<TrackerView[] | null> {
     return trackers.map((t) => ({
       id: t.id,
       name: t.name,
-      legend: parse(t.legend),
+      ...parseLegend(t.legend),
       marks: Object.fromEntries(t.marks.map((m) => [m.day, m.value])),
     }))
   } catch {
@@ -48,36 +60,52 @@ export async function listTrackers(): Promise<TrackerView[] | null> {
   }
 }
 
-export async function createTracker(name: string, legend: LegendItem[]) {
+export async function createTracker(name: string, kind: TrackerKind) {
   return prisma.tracker.create({
-    data: { name: name.trim().slice(0, 120), legend: JSON.stringify(legend) },
+    data: { name: name.trim().slice(0, 120), legend: storeLegend(kind) },
   })
 }
 
 export async function updateTracker(
   id: string,
-  change: { name?: string; legend?: LegendItem[] },
+  change: { name?: string; kind?: TrackerKind },
 ) {
   const tracker = await prisma.tracker.update({
     where: { id },
     data: {
       ...(change.name ? { name: change.name.trim().slice(0, 120) } : {}),
-      ...(change.legend ? { legend: JSON.stringify(change.legend) } : {}),
+      ...(change.kind ? { legend: storeLegend(change.kind) } : {}),
     },
   })
-  // marks for answers taken out of the legend go with them
-  if (change.legend)
-    await prisma.trackerMark.deleteMany({
-      where: {
-        trackerId: id,
-        value: { notIn: change.legend.map((l) => l.key) },
-      },
+  // days answered with something it no longer has (an answer taken out, a
+  // number past the scale's new ends) are cleared
+  const kind = change.kind
+  if (kind) {
+    const marks = await prisma.trackerMark.findMany({
+      where: { trackerId: id },
+      select: { id: true, value: true },
     })
+    const gone = marks.filter((m) => !fits(kind, m.value)).map((m) => m.id)
+    if (gone.length)
+      await prisma.trackerMark.deleteMany({ where: { id: { in: gone } } })
+  }
   return tracker
 }
 
+// Delete a tracker and its answers. Gives a token to undo it.
 export async function deleteTracker(id: string) {
+  const tracker = await prisma.tracker.findUniqueOrThrow({
+    where: { id },
+    include: { marks: true },
+  })
   await prisma.tracker.delete({ where: { id } })
+  const { marks, ...own } = tracker
+  return offerUndo("Tracker deleted", () =>
+    prisma.$transaction([
+      prisma.tracker.create({ data: own }),
+      prisma.trackerMark.createMany({ data: marks }),
+    ]),
+  )
 }
 
 // mark a day (or clear it with null)
@@ -89,6 +117,17 @@ export async function setMark(
   if (value === null) {
     await prisma.trackerMark.deleteMany({ where: { trackerId, day } })
     return
+  }
+  // a scale's answer: a number within it, on its steps
+  const tracker = await prisma.tracker.findUniqueOrThrow({
+    where: { id: trackerId },
+    select: { legend: true },
+  })
+  const { scale } = parseLegend(tracker.legend)
+  if (scale) {
+    const n = scaleValue(scale, value)
+    if (n === null) throw new RangeError("Not a number on this scale")
+    value = String(n)
   }
   await prisma.trackerMark.upsert({
     where: { trackerId_day: { trackerId, day } },
@@ -134,7 +173,8 @@ export async function suggestLegend(question: string): Promise<LegendItem[]> {
 // ---- what Ask and the profile read ---------------------------------------
 
 // The trackers as plain text, most recent days first: "How am I feeling?
-// (answers: Low, Okay, Good) 2026-10-18: Good; 2026-10-17: Okay …". Only
+// (answers: Low, Okay, Good) 2026-10-18: Good; 2026-10-17: Okay …", or for
+// a scale "Sleep (a number from 0 hours to 12 hours) 2026-10-18: 7.5 hours". Only
 // days from `since` (YYYY-MM-DD) on, if given; at most `most` days each.
 export async function trackerContext({
   since,
@@ -144,14 +184,25 @@ export async function trackerContext({
   if (!trackers?.length) return ""
   return trackers
     .map((t) => {
+      const scale = t.scale
       const label = new Map(t.legend.map((l) => [l.key, l.label]))
+      const answer = (value: string) => {
+        if (!scale) return label.get(value)
+        const n = scaleValue(scale, value)
+        return n === null ? undefined : formatScale(scale, n)
+      }
       const days = Object.entries(t.marks)
-        .filter(([day, value]) => label.has(value) && (!since || day >= since))
+        .filter(([day, value]) => answer(value) && (!since || day >= since))
         .sort((a, b) => (a[0] < b[0] ? 1 : -1))
         .slice(0, most)
       if (!days.length) return ""
-      return `"${t.name}" (answers: ${t.legend.map((l) => l.label).join(", ")})\n${days
-        .map(([day, value]) => `${day}: ${label.get(value)}`)
+      const ends = (n: number, end: { label: string }) =>
+        `${formatScale(scale!, n)}${end.label ? ` = ${end.label}` : ""}`
+      const about = scale
+        ? `a number from ${ends(scale.min, scale.low)} to ${ends(scale.max, scale.high)}`
+        : `answers: ${t.legend.map((l) => l.label).join(", ")}`
+      return `"${t.name}" (${about})\n${days
+        .map(([day, value]) => `${day}: ${answer(value)}`)
         .join("; ")}`
     })
     .filter(Boolean)

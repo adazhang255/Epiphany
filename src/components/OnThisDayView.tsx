@@ -9,8 +9,6 @@ import { EntryTitle } from "@/components/EntryTitle"
 import { plainText } from "@/features/notes/lib/markdown"
 import { EntryTime } from "@/components/EntryTime"
 
-// How far from the exact day an entry still counts as "around this day".
-const WINDOW_DAYS = 3
 const DAY = 24 * 60 * 60 * 1000
 
 const iso = (d: Date) =>
@@ -40,8 +38,8 @@ export type DayNote = {
   quotes: { id: string; quote: string; category: string }[]
 }
 
-// Everything written on this calendar day in every year, newest first. A
-// year with nothing on the day itself shows what's within a few days of it.
+// Everything written on this calendar day (its month and day, nothing
+// nearby) in every year, newest first.
 // Worked out in the browser, for ?date or the visitor's own today.
 export function OnThisDayView({ notes }: { notes: DayNote[] }) {
   const router = useRouter()
@@ -67,32 +65,15 @@ function Day({
     (a, b) => b - a,
   )
   const groups = years
-    .map((year) => {
-      const target = new Date(year, day.getMonth(), day.getDate())
-      const near = notes
-        .map((n) => ({
-          note: n,
-          offset: Math.round(
-            (new Date(
-              n.date.getFullYear(),
-              n.date.getMonth(),
-              n.date.getDate(),
-            ).getTime() -
-              target.getTime()) /
-              DAY,
-          ),
-        }))
-        .filter((m) => Math.abs(m.offset) <= WINDOW_DAYS)
-      const exact = near.filter((m) => m.offset === 0)
-      return {
-        year,
-        exact: exact.length > 0,
-        // the day itself if anything was written then, else the days around it
-        matches: (exact.length ? exact : near).sort(
-          (a, b) => Math.abs(a.offset) - Math.abs(b.offset),
-        ),
-      }
-    })
+    .map((year) => ({
+      year,
+      matches: notes.filter(
+        (n) =>
+          n.date.getFullYear() === year &&
+          n.date.getMonth() === day.getMonth() &&
+          n.date.getDate() === day.getDate(),
+      ),
+    }))
     .filter((g) => g.matches.length > 0)
 
   const prev = new Date(day.getTime() - DAY)
@@ -134,8 +115,8 @@ function Day({
           </h1>
           <p className="mt-3 text-stone-400">
             {groups.length === 0
-              ? `Nothing written within ${WINDOW_DAYS} days of ${label(day)}, in any year.`
-              : `You wrote on or around ${label(day)} in ${groups.length === 1 ? "one year" : `${groups.length} different years`}.`}
+              ? `Nothing written on ${label(day)}, in any year.`
+              : `You wrote on ${label(day)} in ${groups.length === 1 ? "one year" : `${groups.length} different years`}.`}
           </p>
         </header>
 
@@ -208,11 +189,10 @@ function Day({
                 </span>
                 <span className="font-mono text-xs uppercase tracking-widest text-stone-500">
                   {yearsAgo(thisYear - group.year)}
-                  {!group.exact && " · around this day"}
                 </span>
               </h2>
               <ul className="mt-4 space-y-4">
-                {group.matches.map(({ note, offset }) => {
+                {group.matches.map((note) => {
                   const quote = note.quotes[0]
                   return (
                     <li key={note.id}>
@@ -235,8 +215,6 @@ function Day({
                             createdAt={note.createdAt}
                             before=" · "
                           />
-                          {offset !== 0 &&
-                            ` · ${Math.abs(offset)} ${Math.abs(offset) === 1 ? "day" : "days"} ${offset < 0 ? "before" : "after"}`}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="font-serif text-lg text-stone-100">

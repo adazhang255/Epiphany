@@ -11,6 +11,7 @@ const listeners = new Set<() => void>()
 export function shareThreadTitle(id: string, title: string) {
   if (titles.get(id) === title) return
   titles.set(id, title)
+  version++
   for (const l of listeners) l()
 }
 
@@ -23,4 +24,18 @@ export function useThreadTitle(id: string) {
     () => titles.get(id) ?? null,
     () => null,
   )
+}
+
+let version = 0
+// every title shared so far (re-renders as more arrive): for finding threads
+export function useThreadTitles(): ReadonlyMap<string, string> {
+  useSyncExternalStore(
+    (onChange) => {
+      listeners.add(onChange)
+      return () => listeners.delete(onChange)
+    },
+    () => version,
+    () => 0,
+  )
+  return titles
 }

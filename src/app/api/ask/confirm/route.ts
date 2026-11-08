@@ -112,11 +112,12 @@ export async function POST(req: Request) {
       )
     }
 
-    const backup = await deleteWithBackup(notes)
+    const { backup, undo } = await deleteWithBackup(notes)
     revalidatePath("/", "layout")
     return Response.json({
       deleted: ids.length,
       backup,
+      undo,
     })
   }
 

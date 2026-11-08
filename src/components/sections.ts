@@ -10,7 +10,7 @@ export const THREADS_TABS: SectionTab[] = [
 ]
 
 export const NOTEBOOK_TABS: SectionTab[] = [
-  { href: "/notebook", label: "Notebook" },
+  { href: "/notebook", label: "Pages" },
 ]
 
 export const STATS_TABS: SectionTab[] = [
@@ -19,3 +19,6 @@ export const STATS_TABS: SectionTab[] = [
   ...(PUBLIC_SITE ? [] : [{ href: "/trackers", label: "Trackers" }]),
   { href: "/custom", label: "Custom" },
 ]
+
+// Quotes you keep: a tab under Notebook, once you add it
+export const QUOTES_TAB: SectionTab = { href: "/quotes", label: "Quotes" }

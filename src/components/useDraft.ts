@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
 
 // Unsaved writing is kept in this browser as you type, so leaving the page
 // (a stray click, a link, a reload, a crash) never loses it: coming back
@@ -20,6 +20,69 @@ export type NewEntryDraft = {
   marks?: { key: string; category: string }[]
   ranges?: Record<string, { start: number; end: number }>
 }
+
+// Several new entries can be on the go at once: the first (the one the
+// notebook's blank page shares) under NEW_ENTRY_DRAFT, the others under
+// NEW_ENTRY_DRAFT + ":" + an id of their own, made when started (so they
+// sort oldest first). The Write page shows one at a time, by ?draft=id.
+export const newEntryDraftKey = (id = "") =>
+  id ? `${NEW_ENTRY_DRAFT}:${id}` : NEW_ENTRY_DRAFT
+export const newDraftId = () => Date.now().toString(36)
+export const writeHref = (id = "") =>
+  id ? `/write?draft=${encodeURIComponent(id)}` : "/write"
+
+export type DraftSummary = { id: string; draft: NewEntryDraft }
+
+// told when a draft is kept or cleared, here or in another tab
+const DRAFTS_EVENT = "drafts-change"
+function subscribe(onChange: () => void) {
+  window.addEventListener(DRAFTS_EVENT, onChange)
+  window.addEventListener("storage", onChange)
+  return () => {
+    window.removeEventListener(DRAFTS_EVENT, onChange)
+    window.removeEventListener("storage", onChange)
+  }
+}
+let seen = ""
+let summaries: DraftSummary[] = []
+function readDrafts() {
+  const found: [string, string][] = []
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i)
+      if (key === NEW_ENTRY_DRAFT || key?.startsWith(`${NEW_ENTRY_DRAFT}:`))
+        found.push([key, window.localStorage.getItem(key) ?? ""])
+    }
+  } catch {}
+  found.sort(([a], [b]) => a.length - b.length || (a < b ? -1 : 1))
+  const raw = JSON.stringify(found)
+  if (raw === seen) return summaries
+  seen = raw
+  summaries = found.flatMap(([key, value]) => {
+    try {
+      const draft = JSON.parse(value) as NewEntryDraft
+      return [{ id: key.slice(NEW_ENTRY_DRAFT.length + 1), draft }]
+    } catch {
+      return []
+    }
+  })
+  return summaries
+}
+const none: DraftSummary[] = []
+
+// the new entries being written, kept in this browser (oldest first)
+export function useNewEntryDrafts() {
+  return useSyncExternalStore(subscribe, readDrafts, () => none)
+}
+
+// a draft's name in a list: its title, or how it starts
+export function draftName(draft: NewEntryDraft | null | undefined) {
+  const title = draft?.title?.trim()
+  if (title) return title
+  const words = draft?.content?.trim().split(/\s+/).slice(0, 5).join(" ")
+  return words ? `${words}…` : "New draft"
+}
+
 // changes to an entry not yet saved
 export const entryDraftKey = (id: string) => `draft:entry:${id}`
 
@@ -36,12 +99,14 @@ export function saveDraft(key: string, value: unknown) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
   } catch {}
+  window.dispatchEvent(new Event(DRAFTS_EVENT))
 }
 
 export function clearDraft(key: string) {
   try {
     window.localStorage.removeItem(key)
   } catch {}
+  window.dispatchEvent(new Event(DRAFTS_EVENT))
 }
 
 // Keep `value` saved under `key` (a moment after the last change, and right

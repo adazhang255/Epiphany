@@ -90,6 +90,7 @@ for (const route of [
   "preview",
   "questions", // only a redirect to the timeline's Question filter
   "trackers", // your own day-by-day answers
+  "quotes", // quotes you keep for yourself
 ]) {
   rmSync(path.join(work, "src/app", route), { recursive: true, force: true })
 }
@@ -131,8 +132,9 @@ const copy = path.join(work, "public.db")
 }
 const db = new Database(copy)
 db.exec("PRAGMA foreign_keys = OFF")
-// your day-by-day trackers are private: none of them in the copy
-for (const table of ["TrackerMark", "Tracker"]) {
+// your day-by-day trackers, quotes you keep and the app's settings are
+// private: none of them in the copy
+for (const table of ["TrackerMark", "Tracker", "Inspiration", "Setting"]) {
   const exists = db
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(table)

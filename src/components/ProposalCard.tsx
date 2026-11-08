@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { FoundEntry, ProposalView } from "@/features/ask/tools"
@@ -215,6 +216,11 @@ function EntriesProposalCard({
         : { phrase, entries: chosen.map((i) => drafts[i]) },
     )
     setSending(false)
+    if (ok && isDelete)
+      showUndo({
+        label: `Deleted ${data.deleted} ${data.deleted === 1 ? "entry" : "entries"}`,
+        token: data.undo,
+      })
     if (!ok) {
       // the token is used up either way; a new request makes a new proposal
       setError(data?.error ?? "Could not reach the server.")

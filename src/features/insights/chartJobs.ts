@@ -47,6 +47,12 @@ export function askForChart(question: string): ChartJob {
   return job
 }
 
+// Put back a chart you dismissed (undo), where it was in the list.
+export function restoreChart(job: ChartJob, at: number) {
+  if (state.list.some((j) => j.id === job.id)) return
+  state.list.splice(Math.min(at, state.list.length), 0, job)
+}
+
 export function dismissChart(id: string) {
   const job = state.list.find((j) => j.id === id)
   // one being made finishes first (the model can't be interrupted midway)

@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -54,6 +55,8 @@ function RemoveFromThreadButtonInner({
       )
       return
     }
+    const data = await res.json().catch(() => null)
+    showUndo({ label: "Removed from the thread", token: data?.undo })
     setAsking(false)
     router.refresh()
   }
@@ -65,10 +68,10 @@ function RemoveFromThreadButtonInner({
         onClick={() => setAsking((a) => !a)}
         aria-label="Remove from this thread"
         title="Remove from this thread (your entry stays as it is)"
-        className={`flex h-6 w-6 items-center justify-center rounded-full text-base leading-none transition ${
+        className={`flex h-6 w-6 pointer-coarse:h-9 pointer-coarse:w-9 items-center justify-center rounded-full text-base leading-none transition ${
           asking
             ? "bg-rose-400/20 text-rose-200"
-            : "text-stone-500 opacity-0 hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover/member:opacity-100"
+            : "text-stone-500 opacity-0 hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover/member:opacity-100 pointer-coarse:opacity-60"
         }`}
       >
         ×

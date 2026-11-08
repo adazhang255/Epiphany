@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 import {
   BOLD,
   BULLET,
+  HEADING,
   ITALIC,
   MARKER,
+  QUOTE,
+  QUOTE_MARK,
+  SUBHEADING,
   formatFlags,
   formatRuns,
   plainText,
@@ -69,7 +73,9 @@ describe("formatting", () => {
 
 import {
   continueList,
+  cycleHeading,
   toggleBullets,
+  toggleLines,
   toggleWrap,
   type TextEdit,
 } from "@/features/notes/lib/markdownEdit"
@@ -111,5 +117,47 @@ describe("formatting buttons", () => {
     expect(after("- one[]", continueList)).toBe("- one\n- []")
     expect(after("- one\n- []", continueList)).toBe("- one\n[]")
     expect(after("plain[]", continueList)).toBeNull()
+  })
+})
+
+describe("headings and quotes", () => {
+  const show = (text: string) =>
+    formatRuns(text, formatFlags(text))
+      .filter((r) => !(r.flags & MARKER))
+      .map((r) => {
+        if (r.flags & QUOTE_MARK) return "|"
+        let t = r.flags & BULLET ? "•" : r.text
+        if (r.flags & BOLD) t = `<b>${t}</b>`
+        if (r.flags & HEADING) t = `<h1>${t}</h1>`
+        if (r.flags & SUBHEADING) t = `<h2>${t}</h2>`
+        if (r.flags & QUOTE) t = `<q>${t}</q>`
+        return t
+      })
+      .join("")
+  it("shows them, markers hidden", () => {
+    expect(show("# Day one\nplain")).toBe("<h1>Day one</h1>\nplain")
+    expect(show("## Later\n### Smaller")).toBe(
+      "<h2>Later</h2>\n<h2>Smaller</h2>",
+    )
+    expect(show("> she said **this**")).toBe(
+      "|<q>she said </q><q><b>this</b></q>",
+    )
+    expect(show("#hashtag and a > b")).toBe("#hashtag and a > b")
+  })
+  it("keeps headings and quotes out of highlights and snippets", () => {
+    const text = "# Day one\n> It was **good**."
+    expect(stripInline(text)).toBe("Day one\nIt was good.")
+    expect(quoteIn(text, "Day one It was good")).toBe("Day one\nIt was good")
+  })
+  it("the heading button steps # → ## → none; quote toggles", () => {
+    expect(after("[Title]", cycleHeading)).toBe("[# Title]")
+    expect(after("[# Title]", cycleHeading)).toBe("[## Title]")
+    expect(after("[## Title]", cycleHeading)).toBe("[Title]")
+    expect(after("[a\nb]", (v, s, e) => toggleLines(v, s, e, "quote"))).toBe(
+      "[> a\n> b]",
+    )
+    expect(
+      after("[> a\n> b]", (v, s, e) => toggleLines(v, s, e, "quote")),
+    ).toBe("[a\nb]")
   })
 })

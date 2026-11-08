@@ -23,7 +23,7 @@ export type Thread = {
 
 const MAX_MEMBERS = 8
 
-function normalize(text: string) {
+export function normalize(text: string) {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -80,17 +80,22 @@ export function buildThreads(
   const parent = quotes.map((_, i) => i)
   const find = (i: number): number =>
     parent[i] === i ? i : (parent[i] = find(parent[i]))
-  const sims = new Map<string, number>()
+  // how connected each one is: its similarity to the others it's linked to
+  // (all in its own group, since links are what make the groups)
+  const strengths = new Float64Array(quotes.length)
   for (const { i, j, sim } of pairs) {
     if (sim < threshold) continue
-    sims.set(`${i}:${j}`, sim)
+    strengths[i] += sim
+    strengths[j] += sim
     parent[find(i)] = find(j)
   }
 
   const groups = new Map<number, number[]>()
   quotes.forEach((_, i) => {
     const root = find(i)
-    groups.set(root, [...(groups.get(root) ?? []), i])
+    const group = groups.get(root)
+    if (group) group.push(i)
+    else groups.set(root, [i])
   })
 
   const threads: Thread[] = []
@@ -98,11 +103,7 @@ export function buildThreads(
     if (members.length < 2) continue
 
     // one representative per day: the one most connected to the rest
-    const strength = (i: number) =>
-      members.reduce(
-        (sum, j) => sum + (sims.get(i < j ? `${i}:${j}` : `${j}:${i}`) ?? 0),
-        0,
-      )
+    const strength = (i: number) => strengths[i]
     const byDay = new Map<string, number>()
     for (const i of members) {
       const day = dayKey(quotes[i].date)

@@ -14,13 +14,22 @@ import { trackerContext } from "@/features/trackers/trackers"
 // the text and the passages you marked) and writes a short profile in its
 // own words, quoting yours: core themes, interests and thought patterns,
 // changes over time, and an overall impression. Kept in a file so it's only
-// rewritten when you ask.
+// rewritten when you ask, or once a month (if you've written since): then
+// it says what changed since the one from about a month before.
 
 export type SavedProfile = {
   markdown: string // the profile, in simple Markdown
   generatedAt: string
   entries: number // how many entries the journal has
   read: number // how many it read
+  // what changed since an earlier profile (about a month before)
+  changes?: ProfileChanges
+}
+
+export type ProfileChanges = {
+  since: string // when that earlier one was written
+  newEntries: number // entries written in between
+  points: string[] // a few sentences, to "you"
 }
 
 // (git-ignored; never part of the public site). One per database, so the
@@ -35,6 +44,15 @@ const FILE = path.join(
   ".cache",
   DB === "dev" ? "writer-profile.json" : `writer-profile-${DB}.json`,
 )
+// the ones before it, oldest first, to compare against
+const HISTORY = FILE.replace(/\.json$/, "-history.json")
+const KEEP = 24
+
+const DAY_MS = 24 * 60 * 60 * 1000
+// rewritten on its own this long after the last one
+const MONTH_DAYS = 30
+// compared with the newest earlier one at least this old (else the last)
+const COMPARE_DAYS = 25
 
 // entries read, spread evenly through time, and how much of each
 const SAMPLE = 10
@@ -113,6 +131,84 @@ export function goalsSection(raw: unknown) {
   return lines.length ? `**Moving toward your goals**\n${lines.join("\n")}` : ""
 }
 
+// ---- what changed since an earlier one -----------------------------------
+
+const CHANGES_PROMPT = `Below are two short portraits of the same person, written by an AI from their private journal: EARLIER and NOW. List what changed between them: up to 4 changes, each one sentence under 25 words, speaking to the person as "you" (e.g. "You write more about your sister now, and less about work."). Only changes the two portraits clearly show; nothing that's the same in both; no advice, no diagnosis. If nothing meaningful changed, return none.`
+const changesSchema = {
+  type: "object",
+  properties: { changes: { type: "array", items: { type: "string" } } },
+  required: ["changes"],
+}
+
+// the model's changes, tidied: whole sentences, not too long, at most four
+export function changePoints(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : []
+  const out: string[] = []
+  for (const item of list) {
+    if (out.length === 4) break
+    let line = String(item ?? "")
+      .replace(/^[\s*•-]+/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+    if (!line || line.split(" ").length > 35) continue
+    if (!/[.!?]$/.test(line)) line += "."
+    out.push(line[0].toUpperCase() + line.slice(1))
+  }
+  return out
+}
+
+// which earlier profile to compare with: the newest one written at least
+// COMPARE_DAYS before `now`, or else the last one
+export function compareBase(
+  earlier: SavedProfile[],
+  now = new Date(),
+): SavedProfile | null {
+  const sorted = [...earlier].sort((a, b) =>
+    a.generatedAt < b.generatedAt ? -1 : 1,
+  )
+  const cutoff = now.getTime() - COMPARE_DAYS * DAY_MS
+  return (
+    sorted.filter((p) => Date.parse(p.generatedAt) <= cutoff).at(-1) ??
+    sorted.at(-1) ??
+    null
+  )
+}
+
+async function readHistory(): Promise<SavedProfile[]> {
+  try {
+    const list = JSON.parse(await readFile(HISTORY, "utf8"))
+    return Array.isArray(list)
+      ? list.filter((p) => typeof p?.markdown === "string")
+      : []
+  } catch {
+    return []
+  }
+}
+
+// (only the profile itself is compared, not its goals)
+const portrait = (markdown: string) =>
+  markdown.split(/\n\*\*Moving toward your goals\*\*/)[0].trim()
+
+async function whatChanged(
+  base: SavedProfile,
+  markdown: string,
+  entries: number,
+): Promise<ProfileChanges | undefined> {
+  const reply = await chatJSON<{ changes: unknown }>(
+    CHANGES_PROMPT,
+    `EARLIER (${new Date(base.generatedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}):\n${portrait(base.markdown)}\n\nNOW:\n${portrait(markdown)}`,
+    changesSchema,
+    { model: await pickAskModel(), temperature: 0.3, numCtx: 4096 },
+  ).catch(() => null)
+  // (no answer: say nothing, rather than "much the same")
+  if (!reply) return undefined
+  return {
+    since: base.generatedAt,
+    newEntries: Math.max(0, entries - base.entries),
+    points: changePoints(reply?.changes),
+  }
+}
+
 // a dozen entries spread across the journal, oldest first
 async function sample() {
   const notes = await prisma.note.findMany({
@@ -162,7 +258,7 @@ export async function writeProfile({
   const trackers = daily
     ? `\n\nDaily trackers they fill in themselves (self-reported answers to a question each day, not entries; use them to notice patterns, e.g. how they felt over time, but never invent or quote them as entries):\n\n${daily}`
     : ""
-  onStep?.(1, 1)
+  onStep?.(1, save ? 2 : 1)
   const write = async () => {
     let markdown = ""
     for await (const piece of chatStream(
@@ -211,7 +307,19 @@ export async function writeProfile({
     read,
   }
   if (save) {
+    // the one it replaces joins the earlier ones; what changed since the
+    // one from about a month ago (or else the last one)
+    const previous = await readProfile()
+    const history = previous
+      ? [...(await readHistory()), { ...previous, changes: undefined }]
+      : await readHistory()
+    const base = compareBase(history)
+    if (base) {
+      onStep?.(2, 2)
+      saved.changes = await whatChanged(base, markdown, entries)
+    }
     await mkdir(path.dirname(FILE), { recursive: true })
+    await writeFile(HISTORY, JSON.stringify(history.slice(-KEEP), null, 2))
     await writeFile(FILE, JSON.stringify(saved, null, 2))
   }
   return saved
@@ -232,6 +340,8 @@ export async function readProfile(): Promise<SavedProfile | null> {
 // page checks back, so you can leave Stats while the model reads.
 
 export type ProfileJob = {
+  // started on its own (the monthly rewrite), not from the button
+  auto: boolean
   running: boolean
   step: number
   of: number
@@ -241,6 +351,7 @@ export type ProfileJob = {
 
 const jobs = globalThis as unknown as { __profileJob?: ProfileJob }
 const idle: ProfileJob = {
+  auto: false,
   running: false,
   step: 0,
   of: 1,
@@ -250,9 +361,10 @@ const idle: ProfileJob = {
 
 export const profileJob = (): ProfileJob => jobs.__profileJob ?? idle
 
-export function startProfileJob() {
+export function startProfileJob({ auto = false } = {}) {
   if (profileJob().running) return profileJob()
   const job: ProfileJob = {
+    auto,
     running: true,
     step: 0,
     of: 1,
@@ -276,4 +388,17 @@ export function startProfileJob() {
       job.running = false
     })
   return job
+}
+
+// Once a month: if the saved profile is a month old and you've written since,
+// rewrite it in the background (so it can say what changed). Tried once per
+// server run, so a model that isn't running isn't asked again and again.
+export async function startMonthlyProfile(saved: SavedProfile | null) {
+  if (!saved || profileJob().startedAt) return profileJob()
+  const age = Date.now() - Date.parse(saved.generatedAt)
+  if (!(age >= MONTH_DAYS * DAY_MS)) return profileJob()
+  const newer = await prisma.note.count({
+    where: { createdAt: { gt: new Date(saved.generatedAt) } },
+  })
+  return newer > 0 ? startProfileJob({ auto: true }) : profileJob()
 }

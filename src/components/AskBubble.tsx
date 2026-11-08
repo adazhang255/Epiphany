@@ -14,7 +14,7 @@ function AskBubbleInner() {
       href="/ask"
       aria-label="Ask your journal"
       title="Ask your journal"
-      className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-ember/40 bg-[#1a1a1b] text-ember shadow-lg shadow-black/50 transition hover:scale-105 hover:border-ember hover:bg-ember hover:text-stone-950"
+      className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-ember/40 bg-[#1a1a1b] text-ember shadow-lg shadow-black/50 transition hover:scale-105 hover:border-ember hover:bg-ember hover:text-stone-950"
     >
       <svg
         aria-hidden

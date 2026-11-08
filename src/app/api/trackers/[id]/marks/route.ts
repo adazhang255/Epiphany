@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { setMark } from "@/features/trackers/trackers"
 
-// PUT { day: "YYYY-MM-DD", value: legend key | null } marks a day (or
-// clears it).
+// PUT { day: "YYYY-MM-DD", value: legend key (or a scale's number) | null }
+// marks a day (or clears it).
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -13,10 +13,16 @@ export async function PUT(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day))
     return NextResponse.json({ error: "Invalid day" }, { status: 400 })
   const value =
-    typeof body?.value === "string" && body.value ? body.value : null
+    typeof body?.value === "number"
+      ? String(body.value)
+      : typeof body?.value === "string" && body.value
+        ? body.value
+        : null
   try {
     await setMark(id, day, value)
-  } catch {
+  } catch (e) {
+    if (e instanceof RangeError)
+      return NextResponse.json({ error: e.message }, { status: 400 })
     return NextResponse.json({ error: "Tracker not found" }, { status: 404 })
   }
   return NextResponse.json({ ok: true })

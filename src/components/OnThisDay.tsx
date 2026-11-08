@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { PurposeBadges } from "@/components/PurposeBadges"
-import { dayKey } from "@/features/notes/lib/time"
 import { EntryTime } from "@/components/EntryTime"
 import { entryCategories } from "@/features/notes/lib/topics"
 import { EntryTitle } from "@/components/EntryTitle"
@@ -16,22 +15,11 @@ type Memory = {
   quotes: { id: string; quote: string; category: string }[]
 }
 
-// How far a month/year match may drift from the exact date ("around this day").
-const WINDOW_DAYS = 3
-
-function shift(date: Date, { days = 0, months = 0, years = 0 }) {
-  return new Date(
-    date.getFullYear() - years,
-    date.getMonth() - months,
-    date.getDate() - days,
-  )
-}
-
 function plural(n: number, unit: string) {
   return n === 1 ? `A ${unit} ago` : `${n} ${unit}s ago`
 }
 
-// What you wrote a week ago, a month ago, and on this date in past years.
+// What you wrote on this very date (same month and day) in past years.
 export function OnThisDay({
   notes,
   today = new Date(),
@@ -47,39 +35,21 @@ export function OnThisDay({
   // say so when nothing matches, instead of showing nothing
   showEmpty?: boolean
 }) {
-  const byDay = new Map<string, Memory[]>()
+  // by how many years ago, for entries on today's month and day only
+  const byYears = new Map<number, Memory[]>()
   for (const note of notes) {
-    const key = dayKey(note.date)
-    byDay.set(key, [...(byDay.get(key) ?? []), note])
-  }
-
-  const groups: { label: string; notes: Memory[] }[] = []
-  const add = (label: string, target: Date) => {
-    const found = byDay.get(dayKey(target))
-    if (found) groups.push({ label, notes: found })
-    return Boolean(found)
-  }
-
-  // exact date first, then the closest entry within a few days either side
-  const addNear = (exact: string, around: string, target: Date) => {
-    if (add(exact, target)) return
-    for (let d = 1; d <= WINDOW_DAYS; d++) {
-      if (add(around, shift(target, { days: d }))) return
-      if (add(around, shift(target, { days: -d }))) return
-    }
-  }
-
-  add("A week ago", shift(today, { days: 7 }))
-  addNear("A month ago", "About a month ago", shift(today, { months: 1 }))
-  const oldest = Math.min(...notes.map((n) => n.date.getFullYear()))
-  for (let years = 1; today.getFullYear() - years >= oldest; years++) {
-    const label = plural(years, "year")
-    addNear(
-      label,
-      `Around this day, ${label.toLowerCase()}`,
-      shift(today, { years }),
+    const years = today.getFullYear() - note.date.getFullYear()
+    if (
+      years < 1 ||
+      note.date.getMonth() !== today.getMonth() ||
+      note.date.getDate() !== today.getDate()
     )
+      continue
+    byYears.set(years, [...(byYears.get(years) ?? []), note])
   }
+  const groups = [...byYears.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([years, notes]) => ({ label: plural(years, "year"), notes }))
 
   if (groups.length === 0 && !showEmpty) return null
 
@@ -107,7 +77,7 @@ export function OnThisDay({
       </div>
       {groups.length === 0 && (
         <p className="mt-3 text-sm text-stone-400">
-          Nothing from a week ago, a month ago, or this day in past years.
+          Nothing written on this day in past years.
         </p>
       )}
       <ul className="mt-4 grid gap-4 sm:grid-cols-2">

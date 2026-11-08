@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { usePublicView } from "@/components/usePublicView"
-import type { ProfileJob, SavedProfile } from "@/features/profile/profile"
+import type {
+  ProfileChanges,
+  ProfileJob,
+  SavedProfile,
+} from "@/features/profile/profile"
 
 // A portrait of the writer on Stats: values, interests, emotional state and
 // shifts over time, written by the local model from the journal. Written (or
@@ -67,7 +71,7 @@ export function WriterProfile({
           </h2>
           <p className="mt-1 text-sm text-stone-400">
             {saved
-              ? `Written ${new Date(saved.generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+              ? `Written ${longDate(saved.generatedAt)}.${readOnly ? "" : " Rewritten each month you write, to show what changed."}`
               : "A portrait written by your local AI from your entries: what you value, what you keep coming back to, how you've been, what changed, and small steps toward the goals you wrote about."}
           </p>
         </div>
@@ -85,10 +89,14 @@ export function WriterProfile({
       {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
       {busy && (
         <p className="mt-3 text-xs text-stone-500">
-          Being written in the background: you can leave this page and come
-          back. Nothing leaves your computer.
+          {job?.auto
+            ? "It's been a month, so it's being rewritten to show what changed"
+            : "Being written in the background"}
+          : you can leave this page and come back. Nothing leaves your computer.
         </p>
       )}
+
+      {saved?.changes && !readOnly && <Changes changes={saved.changes} />}
 
       {saved && (
         <div className="mt-5 max-w-3xl">
@@ -102,6 +110,41 @@ export function WriterProfile({
         </div>
       )}
     </section>
+  )
+}
+
+const longDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
+
+// What changed since the profile before (about a month ago): a few lines,
+// and how many entries came in between.
+function Changes({ changes }: { changes: ProfileChanges }) {
+  const n = changes.newEntries
+  return (
+    <div className="mt-5 max-w-3xl rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+      <h3 className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
+        Since {longDate(changes.since)}
+        {n > 0 && ` · ${n} new ${n === 1 ? "entry" : "entries"}`}
+      </h3>
+      {changes.points.length ? (
+        <ul className="mt-2 space-y-1.5">
+          {changes.points.map((point, i) => (
+            <li
+              key={i}
+              className="relative pl-4 text-[15px] leading-relaxed text-stone-300 before:absolute before:left-0 before:top-[0.65em] before:h-1 before:w-2 before:rounded-full before:bg-stone-500"
+            >
+              {inline(point)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-stone-400">Much the same as then.</p>
+      )}
+    </div>
   )
 }
 

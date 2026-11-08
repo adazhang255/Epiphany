@@ -7,17 +7,23 @@ import {
 } from "@/features/notes/services/notes.service"
 import { mergeTags, splitList } from "@/features/notes/lib/topics"
 import { PUBLIC_SITE } from "@/lib/site-mode"
+import { TodayTrackers, TrackersProvider } from "@/components/Trackers"
+import { listTrackers } from "@/features/trackers/trackers"
+import { dayKey } from "@/features/notes/lib/time"
 
 export const dynamic = "force-dynamic"
 
-// The timeline: every entry's highlights by month and day. The page loads
-// the entries once; the view applies ?type, ?order, ?q and ?kind in the
-// browser (so the public site, built once, filters the same way).
+// The timeline: every entry's highlights by month and day, under today's
+// trackers to answer. The page loads the entries once; the view applies
+// ?type, ?order, ?q and ?kind in the browser (so the public site, built
+// once, filters the same way).
 export default async function TimelinePage() {
-  const [timeline, duplicates, questions] = await Promise.all([
+  const [timeline, duplicates, questions, trackers] = await Promise.all([
     getTimeline(),
     PUBLIC_SITE ? [] : findDuplicateGroups(),
     loadQuestionViews(),
+    // today's answers, first thing (your own: never on the public site)
+    PUBLIC_SITE ? null : listTrackers(),
   ])
   const notes = timeline.map((n) => ({
     id: n.id,
@@ -47,8 +53,15 @@ export default async function TimelinePage() {
     })),
   }))
   return (
-    <Suspense>
-      <TimelineView notes={notes} duplicates={groups} questions={questions} />
-    </Suspense>
+    <>
+      {trackers ? (
+        <TrackersProvider initial={trackers} today={dayKey(new Date())}>
+          <TodayTrackers />
+        </TrackersProvider>
+      ) : null}
+      <Suspense>
+        <TimelineView notes={notes} duplicates={groups} questions={questions} />
+      </Suspense>
+    </>
   )
 }

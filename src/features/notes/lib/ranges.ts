@@ -68,6 +68,18 @@ function refind(words: string, text: string, near: number): Range | null {
   return best === null ? null : { start: best, end: best + words.length }
 }
 
+// a run from markUp, styled as it's drawn behind the text box
+export const tinted = (part: { text: string; color?: string }) =>
+  part.color
+    ? {
+        text: part.text,
+        style: {
+          background: tint(part.color, 0.22),
+          boxShadow: `inset 0 -2px 0 ${tint(part.color, 0.85)}`,
+        },
+      }
+    : { text: part.text }
+
 // The text being edited, cut into plain runs and highlighted ones.
 export function markUp(
   text: string,

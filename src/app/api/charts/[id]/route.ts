@@ -8,12 +8,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
+  let undo: string
   try {
-    await deleteSavedChart(id)
+    undo = await deleteSavedChart(id)
   } catch {
     return NextResponse.json({ error: "Chart not found" }, { status: 404 })
   }
   revalidatePath("/stats")
   revalidatePath("/custom")
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, undo })
 }

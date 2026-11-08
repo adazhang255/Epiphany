@@ -69,15 +69,18 @@ function AnalysisIndicatorInner() {
         href={`/notes/${first.id}`}
         role="status"
         title={`Finding highlights in “${titleText(first.title)}”`}
-        className="flex shrink-0 items-center gap-1 rounded-full border border-ember/30 bg-ember/[0.06] py-0.5 pl-1 pr-3 text-xs text-stone-300"
+        className="flex shrink-0 items-center gap-1 rounded-full border border-ember/30 bg-ember/[0.06] py-0.5 pl-1 pr-3 text-xs text-stone-300 max-sm:pr-1"
       >
         <span className="-my-1 scale-[0.7]">
           <Walker walking flipped={false} />
         </span>
-        Finding highlights
-        {pending.length > 1 && (
-          <span className="text-stone-500">· {pending.length}</span>
-        )}
+        {/* on phones only the walker shows; the words are still read out */}
+        <span className="max-sm:sr-only">
+          Finding highlights
+          {pending.length > 1 && (
+            <span className="text-stone-500">· {pending.length}</span>
+          )}
+        </span>
       </Link>
     )
   }
@@ -86,12 +89,14 @@ function AnalysisIndicatorInner() {
       <Link
         href={`/notes/${ready.id}`}
         role="status"
-        className="save-toast flex shrink-0 items-center gap-1.5 rounded-full border border-ember/30 px-3 py-1 text-xs text-stone-300"
+        className="save-toast flex shrink-0 items-center gap-1.5 rounded-full border border-ember/30 px-3 py-1 text-xs text-stone-300 max-sm:px-2"
       >
         <span className="text-ember">✓</span>
-        {ready.ok
-          ? `Highlights ready${ready.count ? ` · ${ready.count}` : ""}`
-          : "Couldn’t find highlights (is Ollama running?)"}
+        <span className="max-sm:sr-only">
+          {ready.ok
+            ? `Highlights ready${ready.count ? ` · ${ready.count}` : ""}`
+            : "Couldn’t find highlights (is Ollama running?)"}
+        </span>
       </Link>
     )
   }

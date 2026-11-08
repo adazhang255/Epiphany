@@ -158,7 +158,7 @@ function NoteEntry({ note }: { note: TimelineNote }) {
           noteId={note.id}
           title={note.title}
           className="ml-auto"
-          idleClassName="opacity-0 focus:opacity-100 group-hover/entry:opacity-100"
+          idleClassName="opacity-0 focus:opacity-100 group-hover/entry:opacity-100 pointer-coarse:opacity-60"
         />
       </div>
 
@@ -220,7 +220,7 @@ function MoreNotes({ notes, more }: { notes: TimelineNote[]; more: boolean }) {
               noteId={note.id}
               title={note.title}
               className="ml-auto"
-              idleClassName="opacity-0 focus:opacity-100 group-hover/row:opacity-100"
+              idleClassName="opacity-0 focus:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-60"
             />
           </li>
         ))}

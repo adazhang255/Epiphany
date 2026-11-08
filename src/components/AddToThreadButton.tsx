@@ -4,12 +4,14 @@ import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
+import { StartThreadForm } from "@/components/StartThreadForm"
 
 type ThreadOption = ThreadRef & { title: string; size: number }
 
-// "Add to thread" on a highlight: pick which thread it belongs in. The list
-// comes from the Threads page (threads you arranged, similar passages, and
-// questions with answers, where it's added as an answer).
+// "Add to thread" on a highlight: pick which thread it belongs in, or start
+// a new one with it. The list comes from the Threads page (threads you
+// arranged, similar passages, and questions with answers, where it's added
+// as an answer).
 function AddToThreadButtonInner({
   item,
   exclude,
@@ -86,7 +88,7 @@ function AddToThreadButtonInner({
         className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-widest transition ${
           open
             ? "bg-ember/20 text-ember"
-            : `text-stone-500 hover:bg-white/10 hover:text-ember ${quiet ? "opacity-0 focus:opacity-100 group-hover/member:opacity-100 group-hover/hl:opacity-100" : ""}`
+            : `text-stone-500 hover:bg-white/10 hover:text-ember ${quiet ? "opacity-0 focus:opacity-100 group-hover/member:opacity-100 group-hover/hl:opacity-100 pointer-coarse:opacity-100" : ""}`
         }`}
       >
         <span aria-hidden>⇢</span> Thread
@@ -128,6 +130,12 @@ function AddToThreadButtonInner({
           {message && (
             <span className="mt-1 block px-1 text-stone-400">{message}</span>
           )}
+          <span className="mt-2 block border-t border-white/10 pt-2">
+            <span className="block px-1 pb-1.5 text-stone-400">
+              …or start a new one with it:
+            </span>
+            <StartThreadForm item={item} />
+          </span>
         </span>
       )}
     </span>

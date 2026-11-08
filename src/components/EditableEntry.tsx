@@ -1,11 +1,13 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
+
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { plainTitle } from "@/features/notes/lib/titles"
 import {
-  confirmDiscard,
+  saveDraft,
   entryDraftKey,
   loadDraft,
   useDraftAutosave,
@@ -23,7 +25,7 @@ import {
   spotStyle,
   type PickerSpot,
 } from "@/features/notes/lib/caret"
-import { follow, markUp, tint, type Range } from "@/features/notes/lib/ranges"
+import { follow, markUp, tinted, type Range } from "@/features/notes/lib/ranges"
 import {
   SENTIMENT_COLORS,
   SENTIMENT_LABELS,
@@ -31,6 +33,7 @@ import {
 } from "@/features/notes/lib/topics"
 import { TrashIcon } from "@/components/TrashIcon"
 import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import { FormattedText, LiveFormatted } from "@/components/Formatted"
 import { clockTime } from "@/features/notes/lib/time"
 
 const isoDay = (iso: string) => {
@@ -102,6 +105,8 @@ export function EditableEntry({
   const router = useRouter()
   const readOnly = usePublicView()
   const box = useRef<HTMLTextAreaElement>(null)
+  // the text formatted, instead of the text box
+  const [preview, setPreview] = useState(false)
   // ?edit=1 opens straight into editing (e.g. arriving from the notebook)
   const { edit } = useEntryParams()
   const [editing, setEditing] = useState(edit)
@@ -196,11 +201,19 @@ export function EditableEntry({
     setEditing(true)
   }
 
-  // Cancel or esc: changes go only if you say so
+  // Cancel or esc: unsaved changes go at once; "Undo" brings them back
   function cancel() {
-    if (unsaved && !confirmDiscard("your changes to this entry")) return
+    const was = unsaved ? keep : null
     clearDraft()
     stop()
+    if (was)
+      showUndo({
+        label: "Changes discarded",
+        onUndo: () => {
+          saveDraft(draftKey, was)
+          start()
+        },
+      })
   }
 
   // leaving edit mode also drops ?edit=1 from the address
@@ -634,31 +647,30 @@ export function EditableEntry({
         </div>
       </div>
 
-      <FormatBar box={box} className="-mb-3 justify-end" />
+      <FormatBar
+        box={box}
+        preview={preview}
+        onPreview={setPreview}
+        className="-mb-3 justify-end"
+      />
+      {preview && (
+        <div
+          onClick={() => setPreview(false)}
+          title="Click to go back to writing"
+          className="notebook min-h-[22rem] cursor-text whitespace-pre-wrap break-words rounded-xl border border-ember/25 py-3 pr-4 font-serif text-[18px] text-stone-200"
+        >
+          <FormattedText text={draft.content} />
+        </div>
+      )}
       {/* the text box sits on a copy of the text with the highlights
           tinted in, laid out identically, so they show while you edit */}
-      <div ref={wrap} className="relative">
+      <div ref={wrap} className={preview ? "hidden" : "relative"}>
         <div
           ref={copy}
           aria-hidden
-          className="notebook pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent py-3 pr-4 font-serif text-[18px] text-transparent"
+          className="notebook pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent py-3 pr-4 font-serif text-[18px] live-copy"
         >
-          {parts.map((part, i) =>
-            part.color ? (
-              <span
-                key={i}
-                className="rounded-sm"
-                style={{
-                  background: tint(part.color, 0.22),
-                  boxShadow: `inset 0 -2px 0 ${tint(part.color, 0.85)}`,
-                }}
-              >
-                {part.text}
-              </span>
-            ) : (
-              <span key={i}>{part.text}</span>
-            ),
-          )}
+          <LiveFormatted parts={parts.map(tinted)} />
           {"\u200b"}
         </div>
         <textarea
@@ -689,7 +701,7 @@ export function EditableEntry({
           autoFocus
           rows={12}
           style={{ background: "transparent" }}
-          className="notebook relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
+          className="notebook live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
         />
 
         {anchor && (selRange || here) && (

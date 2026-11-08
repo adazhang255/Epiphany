@@ -61,34 +61,78 @@ export function toggleWrap(
   }
 }
 
-const BULLET = /^(\s*)[-*][ \t]+/
-
-// Make the selected lines bullets, or plain lines if they all are already.
-export function toggleBullets(
-  v: string,
-  selStart: number,
-  selEnd: number,
-): TextEdit {
+// the lines the selection touches: where they start and end in the text
+function selectedLines(v: string, selStart: number, selEnd: number) {
   const start = v.lastIndexOf("\n", selStart - 1) + 1
   // a selection ending just after a line break doesn't take the next line
   const last = selEnd > selStart && v[selEnd - 1] === "\n" ? selEnd - 1 : selEnd
   const nl = v.indexOf("\n", Math.max(last, start))
   const end = nl < 0 ? v.length : nl
-  const lines = v.slice(start, end).split("\n")
+  return { start, end, lines: v.slice(start, end).split("\n") }
+}
+
+// what starts a bullet line, and a quote line ("$1": its indent, kept)
+const PREFIXES = {
+  bullet: { test: /^(\s*)[-*][ \t]+/, add: "- " },
+  quote: { test: /^()>[ \t]?/, add: "> " },
+} as const
+
+// Make the selected lines bullets (or quotes), or plain lines if they all
+// are already.
+export function toggleLines(
+  v: string,
+  selStart: number,
+  selEnd: number,
+  kind: keyof typeof PREFIXES,
+): TextEdit {
+  const { test, add } = PREFIXES[kind]
+  const { start, end, lines } = selectedLines(v, selStart, selEnd)
   if (lines.length === 1 && !lines[0].trim())
-    return { start, end, insert: "- ", from: start + 2, to: start + 2 }
+    return {
+      start,
+      end,
+      insert: add,
+      from: start + add.length,
+      to: start + add.length,
+    }
   const filled = lines.filter((l) => l.trim())
-  const all = filled.every((l) => BULLET.test(l))
+  const all = filled.every((l) => test.test(l))
   const next = lines
     .map((l) =>
-      all
-        ? l.replace(BULLET, "$1")
-        : l.trim() && !BULLET.test(l)
-          ? `- ${l}`
-          : l,
+      all ? l.replace(test, "$1") : l.trim() && !test.test(l) ? add + l : l,
     )
     .join("\n")
   return { start, end, insert: next, from: start, to: start + next.length }
+}
+
+export const toggleBullets = (v: string, selStart: number, selEnd: number) =>
+  toggleLines(v, selStart, selEnd, "bullet")
+
+// The selected lines as a heading, a smaller one, then plain again: each
+// press steps "# " → "## " → none (from where the first line is).
+export function cycleHeading(
+  v: string,
+  selStart: number,
+  selEnd: number,
+): TextEdit {
+  const { start, end, lines } = selectedLines(v, selStart, selEnd)
+  const HEAD = /^#{1,6}[ \t]+/
+  const first = lines.find((l) => l.trim()) ?? ""
+  const level = HEAD.exec(first)?.[0].trim().length ?? 0
+  const add = level === 0 ? "# " : level === 1 ? "## " : ""
+  if (lines.length === 1 && !lines[0].trim())
+    return { start, end, insert: "# ", from: start + 2, to: start + 2 }
+  const next = lines
+    .map((l) => (l.trim() ? add + l.replace(HEAD, "") : l))
+    .join("\n")
+  const caretAtEnd = selStart === selEnd
+  return {
+    start,
+    end,
+    insert: next,
+    from: caretAtEnd ? start + next.length : start,
+    to: start + next.length,
+  }
 }
 
 // Enter on a bullet line: the next bullet, or (on an empty one) the end of

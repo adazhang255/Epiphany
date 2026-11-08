@@ -26,13 +26,17 @@ export function spanOf(entries: ExportEntry[]) {
   return first === last ? first : `${first} – ${last}`
 }
 
-// a paragraph with its bold, italic and bullets (see lib/markdown)
+// a paragraph with its bold, italic, bullets, headings and quotes (see
+// lib/markdown)
 const formatted = (para: string) =>
   shownRuns(para)
-    .map(({ text, bold, italic }) => {
+    .map(({ text, bold, italic, heading, quote }) => {
       let t = esc(text).replace(/\n/g, "<br>")
       if (italic) t = `<i>${t}</i>`
       if (bold) t = `<b>${t}</b>`
+      if (quote) t = `<i style="color:#666666">${t}</i>`
+      if (heading)
+        t = `<b style="font-size:${heading === 1 ? 16 : 14}pt">${t}</b>`
       return t
     })
     .join("")

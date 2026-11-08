@@ -60,3 +60,6 @@ next-env.d.ts
 
 # derived from your journal (e.g. the writer profile on Stats)
 /.cache/
+
+# thread grouping kept between visits (highlight ids and scores only)
+/.cache/

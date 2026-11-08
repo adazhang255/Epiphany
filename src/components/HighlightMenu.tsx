@@ -1,8 +1,10 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { useEffect, useRef, useState } from "react"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { TrashIcon } from "@/components/TrashIcon"
+import { StartThreadForm } from "@/components/StartThreadForm"
 import { OnTop } from "@/components/OnTop"
 import { spotUnder } from "@/features/notes/lib/caret"
 
@@ -99,6 +101,7 @@ export function HighlightMenu({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [starting, setStarting] = useState(false)
   const self = useRef<HTMLDivElement>(null)
 
   // clicking anywhere else closes it
@@ -124,6 +127,14 @@ export function HighlightMenu({
       return
     }
     window.getSelection()?.removeAllRanges()
+    if (body?.undo)
+      showUndo({
+        label:
+          body.removed > 1
+            ? `${body.removed} highlights removed`
+            : "Highlight removed",
+        token: body.undo,
+      })
     onChanged(body?.highlights ?? [])
     onClose()
   }
@@ -190,7 +201,21 @@ export function HighlightMenu({
             </button>
           )}
         </div>
+        {menu.kind === "existing" && starting && (
+          <div className="mt-2 w-72 max-w-[88vw] border-t border-white/10 pt-2 text-xs">
+            <StartThreadForm item={menu.id} autoFocus />
+          </div>
+        )}
         <div className="mt-1.5 flex justify-end gap-4 px-1 text-[11px]">
+          {menu.kind === "existing" && !starting && (
+            <button
+              type="button"
+              onClick={() => setStarting(true)}
+              className="mr-auto text-stone-400 hover:text-ember"
+            >
+              ⇢ Start a thread
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

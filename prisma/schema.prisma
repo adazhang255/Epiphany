@@ -123,3 +123,22 @@ model TrackerMark {
 
   @@unique([trackerId, day])
 }
+
+// Quotes you keep (the Quotes section, once you add it): words worth
+// returning to, from books, people, anywhere; apart from your entries.
+// ("Quote" above is a highlight in an entry.)
+model Inspiration {
+  id        String   @id @default(cuid())
+  text      String
+  author    String   @default("") // who said or wrote it
+  source    String   @default("") // where it's from (a book, a talk…)
+  note      String   @default("") // why it stays with you
+  createdAt DateTime @default(now())
+}
+
+// The app's own settings, by name (e.g. which optional sections are in the
+// menu).
+model Setting {
+  key   String @id
+  value String
+}

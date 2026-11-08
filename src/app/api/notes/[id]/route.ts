@@ -196,9 +196,7 @@ export async function PATCH(
       const found = findQuote(text, h.quote)
       const range = found ? snapToWords(text, found) : null
       // kept without formatting markers (**bold**, *italic*)
-      const quote = range
-        ? stripRange(text, range.start, range.end).trim()
-        : ""
+      const quote = range ? stripRange(text, range.start, range.end).trim() : ""
       if (!quote) continue
       changes.push({ id: h.id, quote, category: cleanCategoryName(h.category) })
     }
@@ -293,7 +291,7 @@ export async function DELETE(
   if (notes.length === 0) {
     return NextResponse.json({ error: "Note not found" }, { status: 404 })
   }
-  const backup = await deleteWithBackup(notes)
+  const { backup, undo } = await deleteWithBackup(notes)
   revalidatePath("/", "layout")
-  return NextResponse.json({ deleted: 1, backup })
+  return NextResponse.json({ deleted: 1, backup, undo })
 }

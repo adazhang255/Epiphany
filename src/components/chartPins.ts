@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import type { ChartSpec } from "@/features/insights/spec"
+import { showUndo } from "@/components/UndoToast"
 
 // Pinning charts to the Stats overview, from Custom or Ask, and keeping any
 // open Stats page up to date (in this tab or another one) when pins change.
@@ -36,10 +37,13 @@ export async function pinChart(spec: ChartSpec, replacing?: string) {
   return saved.id as string
 }
 
+// Unpin a chart; "Undo" pins it back.
 export async function unpinChart(id: string) {
   const res = await fetch(`/api/charts/${id}`, { method: "DELETE" }).catch(
     () => null,
   )
+  const data = await res?.json().catch(() => null)
+  showUndo({ label: "Chart unpinned", token: data?.undo, onUndo: announce })
   announce()
   return Boolean(res?.ok)
 }

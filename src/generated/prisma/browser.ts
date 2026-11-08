@@ -47,3 +47,13 @@ export type Tracker = Prisma.TrackerModel
  * 
  */
 export type TrackerMark = Prisma.TrackerMarkModel
+/**
+ * Model Inspiration
+ * 
+ */
+export type Inspiration = Prisma.InspirationModel
+/**
+ * Model Setting
+ * 
+ */
+export type Setting = Prisma.SettingModel

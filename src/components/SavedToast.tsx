@@ -22,7 +22,10 @@ export function SavedToast({
     url.searchParams.delete("missed")
     window.history.replaceState(null, "", url)
     // a warning stays up longer, to be read
-    const t = setTimeout(() => setVisible(false), missedHighlights ? 9000 : 4200)
+    const t = setTimeout(
+      () => setVisible(false),
+      missedHighlights ? 9000 : 4200,
+    )
     return () => clearTimeout(t)
   }, [missedHighlights])
 

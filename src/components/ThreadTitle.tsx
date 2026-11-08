@@ -158,7 +158,7 @@ export function ThreadTitle({
           }}
           aria-label="Rename this thread"
           title="Rename this thread"
-          className="font-sans text-sm text-stone-400 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100"
+          className="font-sans text-sm text-stone-400 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100 pointer-coarse:opacity-100"
         >
           ✎
         </button>

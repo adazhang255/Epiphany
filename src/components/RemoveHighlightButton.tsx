@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -31,7 +32,11 @@ function RemoveHighlightButtonInner({
 
   async function remove() {
     setBusy(true)
-    await fetch(`/api/highlights/${id}`, { method: "DELETE" }).catch(() => null)
+    const res = await fetch(`/api/highlights/${id}`, {
+      method: "DELETE",
+    }).catch(() => null)
+    const data = await res?.json().catch(() => null)
+    showUndo({ label: "Highlight removed", token: data?.undo })
     setBusy(false)
     setAsking(false)
     router.refresh()
@@ -48,10 +53,10 @@ function RemoveHighlightButtonInner({
         }}
         aria-label="Remove this highlight"
         title="Remove this highlight (the entry stays as it is)"
-        className={`flex h-6 w-6 items-center justify-center rounded-full transition ${
+        className={`flex h-6 w-6 pointer-coarse:h-9 pointer-coarse:w-9 items-center justify-center rounded-full transition ${
           asking
             ? "bg-rose-400/20 text-rose-200"
-            : "text-stone-500 opacity-0 hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover/hl:opacity-100"
+            : "text-stone-500 opacity-0 hover:bg-white/10 hover:text-rose-300 focus:opacity-100 group-hover/hl:opacity-100 pointer-coarse:opacity-60"
         }`}
       >
         <TrashIcon size={13} />

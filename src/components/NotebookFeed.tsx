@@ -1,5 +1,7 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
+
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -25,7 +27,13 @@ import {
   spotStyle,
   type PickerSpot,
 } from "@/features/notes/lib/caret"
-import { follow, markUp, tint, type Range } from "@/features/notes/lib/ranges"
+import {
+  follow,
+  markUp,
+  tint,
+  tinted,
+  type Range,
+} from "@/features/notes/lib/ranges"
 import {
   SENTIMENT_COLORS,
   SENTIMENT_LABELS,
@@ -40,12 +48,15 @@ import { NotebookTitle } from "@/components/NotebookTitle"
 import { OnTop } from "@/components/OnTop"
 import { EntryTime } from "@/components/EntryTime"
 import { Formatted } from "@/components/Formatted"
+import { useHeaderSave } from "@/components/writeStatus"
+import { SaveCancel } from "@/components/SaveCancel"
+import { DraftTabs } from "@/components/DraftTabs"
 import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import { FormattedText, LiveFormatted } from "@/components/Formatted"
 import { formatFlags } from "@/features/notes/lib/markdown"
 import {
-  NEW_ENTRY_DRAFT,
-  confirmDiscard,
   loadDraft,
+  newEntryDraftKey,
   useDraftAutosave,
   useUnsavedWarning,
   type NewEntryDraft,
@@ -89,10 +100,13 @@ function Page({
   sorting,
   custom,
   onDeleted,
+  onRestored,
 }: {
   note: NotebookNote
   // it should leave the list (deleted, or given a category while sorting)
   onDeleted: () => void
+  // its delete was undone: back in the list
+  onRestored: () => void
   // in the Uncategorized view: say why it's here
   sorting: boolean
   // categories of your own, offered when giving one in the Uncategorized view
@@ -267,6 +281,7 @@ function Page({
               noteId={note.id}
               title={note.title}
               onDeleted={onDeleted}
+              onRestored={onRestored}
               variant="outlined"
               className="shrink-0"
             />
@@ -352,13 +367,18 @@ const todayIso = () => {
 // category and tone, and mark highlights (select words; a type picker pops
 // up beside them). Saving adds it all to the notebook; anything you leave
 // out is found in the background, as for any new entry.
+// `draftId`: which of your drafts this page is ("" for the first, which
+// the Write page shares)
 function BlankPage({
   onSaved,
   custom,
+  draftId,
 }: {
   onSaved: () => void
   custom: string[]
+  draftId: string
 }) {
+  const draftKey = newEntryDraftKey(draftId)
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(todayIso)
   const [content, setContent] = useState("")
@@ -371,8 +391,12 @@ function BlankPage({
   const [sel, setSel] = useState<(Range & { caret: number }) | null>(null)
   const [anchor, setAnchor] = useState<PickerSpot | null>(null)
   const [saving, setSaving] = useState(false)
+  // a moment of "Saved ✓" in the header, once it's in the notebook
+  const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState("")
   const box = useRef<HTMLTextAreaElement>(null)
+  // the text formatted, instead of the text box
+  const [preview, setPreview] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
   const copy = useRef<HTMLDivElement>(null)
   const nextKey = useRef(0)
@@ -382,7 +406,7 @@ function BlankPage({
   const [ready, setReady] = useState(false)
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- reads browser storage, which the server can't */
-    const d = loadDraft<NewEntryDraft>(NEW_ENTRY_DRAFT)
+    const d = loadDraft<NewEntryDraft>(draftKey)
     if (d) {
       setTitle(d.title ?? "")
       setDate(d.date || todayIso())
@@ -399,7 +423,7 @@ function BlankPage({
     }
     setReady(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [])
+  }, [draftKey])
   const draft = useMemo<NewEntryDraft | null>(
     () =>
       title.trim() || content.trim()
@@ -407,13 +431,26 @@ function BlankPage({
         : null,
     [title, date, content, categories, tone, marks, ranges],
   )
-  const clearDraft = useDraftAutosave(NEW_ENTRY_DRAFT, draft, ready)
+  const clearDraft = useDraftAutosave(draftKey, draft, ready)
   useUnsavedWarning(draft !== null && !saving)
 
+  // gone at once; "Undo" brings it all back
   function discard() {
-    if (!confirmDiscard("this page")) return
+    const was = { title, date, content, categories, tone, marks, ranges }
     clearDraft()
     reset()
+    showUndo({
+      label: "Page discarded",
+      onUndo: () => {
+        setTitle(was.title)
+        setDate(was.date)
+        setContent(was.content)
+        setCategories(was.categories)
+        setTone(was.tone)
+        setMarks(was.marks)
+        setRanges(was.ranges)
+      },
+    })
   }
 
   // grow with the writing, so the text stays on the lines
@@ -496,7 +533,11 @@ function BlankPage({
   }
 
   async function save() {
-    if (!content.trim()) return setError("Write something first.")
+    if (!content.trim()) {
+      setPreview(false)
+      requestAnimationFrame(() => box.current?.focus())
+      return setError("Write something first.")
+    }
     setSaving(true)
     setError("")
     const res = await fetch("/api/notes", {
@@ -533,6 +574,8 @@ function BlankPage({
     }
     setSaving(false)
     reset()
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 1500)
     if (missed)
       setError(
         "Saved, but the highlights you marked couldn't be added. Mark them again on the entry.",
@@ -540,6 +583,13 @@ function BlankPage({
     announceAnalysis()
     onSaved()
   }
+
+  // the header's Write button saves this page while there's writing on it
+  useHeaderSave(
+    draft !== null || saving || justSaved,
+    saving ? "saving" : justSaved ? "saved" : "idle",
+    save,
+  )
 
   const label =
     "w-16 shrink-0 font-mono text-[10px] uppercase tracking-widest text-stone-500"
@@ -572,7 +622,12 @@ function BlankPage({
           aria-label="Title"
           className="min-w-0 flex-1 bg-transparent text-[22px] leading-[30px] text-ink outline-none placeholder:text-stone-600"
         />
-        <FormatBar box={box} className="shrink-0" />
+        <FormatBar
+          box={box}
+          preview={preview}
+          onPreview={setPreview}
+          className="shrink-0"
+        />
         <input
           type="date"
           value={date}
@@ -582,29 +637,27 @@ function BlankPage({
         />
       </header>
 
+      {preview && (
+        <div
+          onClick={() => setPreview(false)}
+          title="Click to go back to writing"
+          className="flex-1 cursor-text whitespace-pre-wrap break-words leading-[30px] text-stone-100"
+        >
+          {content.trim() ? (
+            <FormattedText text={content} />
+          ) : (
+            <span className="text-stone-600">Nothing written yet.</span>
+          )}
+        </div>
+      )}
       {/* the text, on a tinted copy that shows the highlights you mark */}
-      <div ref={wrap} className="relative flex-1">
+      <div ref={wrap} className={preview ? "hidden" : "relative flex-1"}>
         <div
           ref={copy}
           aria-hidden
-          className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words leading-[30px] text-transparent"
+          className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words leading-[30px] live-copy"
         >
-          {parts.map((part, i) =>
-            part.color ? (
-              <span
-                key={i}
-                className="rounded-sm"
-                style={{
-                  background: tint(part.color, 0.22),
-                  boxShadow: `inset 0 -2px 0 ${tint(part.color, 0.85)}`,
-                }}
-              >
-                {part.text}
-              </span>
-            ) : (
-              <span key={i}>{part.text}</span>
-            ),
-          )}
+          <LiveFormatted parts={parts.map(tinted)} />
           {"\u200b"}
         </div>
         <textarea
@@ -623,7 +676,7 @@ function BlankPage({
           aria-label="Write a new entry"
           rows={10}
           style={{ background: "transparent" }}
-          className="relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words leading-[30px] text-stone-100 outline-none placeholder:text-stone-600"
+          className="live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words leading-[30px] text-stone-100 outline-none placeholder:text-stone-600"
         />
         {anchor && sel && (
           <OnTop>
@@ -686,32 +739,28 @@ function BlankPage({
         </div>
       </div>
 
-      <footer className="flex min-h-[30px] items-center gap-3">
-        <span className="min-w-0 flex-1 font-mono text-[11px] text-stone-500">
+      <footer className="flex min-h-[30px] flex-wrap items-center gap-x-3 pb-1.5">
+        {/* its own line on phones, the buttons under it */}
+        <span className="min-w-[14rem] flex-1 font-mono text-[11px] leading-[30px] text-stone-500">
           {error ? (
             <span className="text-rose-300">{error}</span>
           ) : (
-            `${items.length ? `${items.length} highlight${items.length === 1 ? "" : "s"} · ` : ""}⌘S to save · anything left blank is filled in for you`
+            <>
+              {items.length > 0 &&
+                `${items.length} highlight${items.length === 1 ? "" : "s"} · `}
+              <span className="pointer-coarse:hidden">⌘S to save · </span>
+              anything left blank is filled in for you
+            </>
           )}
         </span>
-        {draft && !saving && (
-          <button
-            type="button"
-            onClick={discard}
-            title="Your page is kept as you write, until you save it or discard it"
-            className="shrink-0 font-mono text-[11px] text-stone-500 underline decoration-dotted hover:text-stone-300"
-          >
-            discard
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !content.trim()}
-          className="shrink-0 rounded-md bg-ember px-3 py-1 font-mono text-xs font-bold uppercase tracking-widest text-stone-950 disabled:opacity-40"
-        >
-          {saving ? "Saving…" : "Save to notebook"}
-        </button>
+        <SaveCancel
+          compact
+          className="ml-auto"
+          onSave={save}
+          onCancel={draft ? discard : undefined}
+          saving={saving}
+          canSave={Boolean(content.trim())}
+        />
       </footer>
     </article>
   )
@@ -737,6 +786,8 @@ export function NotebookFeed({
   custom?: string[]
 }) {
   const router = useRouter()
+  // which of your drafts the blank page shows ("" the first)
+  const [draftId, setDraftId] = useState("")
   // pages are added a few at a time as you scroll down
   const [count, setCount] = useState(PAGE)
   // entries deleted (or sorted away) here, gone at once
@@ -775,7 +826,19 @@ export function NotebookFeed({
   }
   const blank =
     writable && !PUBLIC_SITE ? (
-      <BlankPage onSaved={reload} custom={custom} />
+      <>
+        <DraftTabs
+          current={draftId}
+          onPick={setDraftId}
+          className="justify-center"
+        />
+        <BlankPage
+          key={draftId}
+          draftId={draftId}
+          onSaved={reload}
+          custom={custom}
+        />
+      </>
     ) : null
 
   if (notes.length === 0 && writable) return <div>{blank}</div>
@@ -808,6 +871,13 @@ export function NotebookFeed({
               sorting={filter === "uncategorized"}
               custom={custom}
               onDeleted={() => setGone((g) => new Set(g).add(note.id))}
+              onRestored={() =>
+                setGone((g) => {
+                  const next = new Set(g)
+                  next.delete(note.id)
+                  return next
+                })
+              }
             />
           </li>
         ))}

@@ -389,7 +389,9 @@ export const ModelName = {
   SavedChart: 'SavedChart',
   Question: 'Question',
   Tracker: 'Tracker',
-  TrackerMark: 'TrackerMark'
+  TrackerMark: 'TrackerMark',
+  Inspiration: 'Inspiration',
+  Setting: 'Setting'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -405,7 +407,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "note" | "quote" | "savedChart" | "question" | "tracker" | "trackerMark"
+    modelProps: "note" | "quote" | "savedChart" | "question" | "tracker" | "trackerMark" | "inspiration" | "setting"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -853,6 +855,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Inspiration: {
+      payload: Prisma.$InspirationPayload<ExtArgs>
+      fields: Prisma.InspirationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.InspirationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.InspirationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        findFirst: {
+          args: Prisma.InspirationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.InspirationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        findMany: {
+          args: Prisma.InspirationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>[]
+        }
+        create: {
+          args: Prisma.InspirationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        createMany: {
+          args: Prisma.InspirationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.InspirationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>[]
+        }
+        delete: {
+          args: Prisma.InspirationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        update: {
+          args: Prisma.InspirationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        deleteMany: {
+          args: Prisma.InspirationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.InspirationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.InspirationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>[]
+        }
+        upsert: {
+          args: Prisma.InspirationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InspirationPayload>
+        }
+        aggregate: {
+          args: Prisma.InspirationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateInspiration>
+        }
+        groupBy: {
+          args: Prisma.InspirationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InspirationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.InspirationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InspirationCountAggregateOutputType> | number
+        }
+      }
+    }
+    Setting: {
+      payload: Prisma.$SettingPayload<ExtArgs>
+      fields: Prisma.SettingFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SettingFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SettingFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        findFirst: {
+          args: Prisma.SettingFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SettingFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        findMany: {
+          args: Prisma.SettingFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>[]
+        }
+        create: {
+          args: Prisma.SettingCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        createMany: {
+          args: Prisma.SettingCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SettingCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>[]
+        }
+        delete: {
+          args: Prisma.SettingDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        update: {
+          args: Prisma.SettingUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        deleteMany: {
+          args: Prisma.SettingDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SettingUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SettingUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>[]
+        }
+        upsert: {
+          args: Prisma.SettingUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SettingPayload>
+        }
+        aggregate: {
+          args: Prisma.SettingAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSetting>
+        }
+        groupBy: {
+          args: Prisma.SettingGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SettingGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SettingCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SettingCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -973,6 +1123,26 @@ export const TrackerMarkScalarFieldEnum = {
 } as const
 
 export type TrackerMarkScalarFieldEnum = (typeof TrackerMarkScalarFieldEnum)[keyof typeof TrackerMarkScalarFieldEnum]
+
+
+export const InspirationScalarFieldEnum = {
+  id: 'id',
+  text: 'text',
+  author: 'author',
+  source: 'source',
+  note: 'note',
+  createdAt: 'createdAt'
+} as const
+
+export type InspirationScalarFieldEnum = (typeof InspirationScalarFieldEnum)[keyof typeof InspirationScalarFieldEnum]
+
+
+export const SettingScalarFieldEnum = {
+  key: 'key',
+  value: 'value'
+} as const
+
+export type SettingScalarFieldEnum = (typeof SettingScalarFieldEnum)[keyof typeof SettingScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1147,6 +1317,8 @@ export type GlobalOmitConfig = {
   question?: Prisma.QuestionOmit
   tracker?: Prisma.TrackerOmit
   trackerMark?: Prisma.TrackerMarkOmit
+  inspiration?: Prisma.InspirationOmit
+  setting?: Prisma.SettingOmit
 }
 
 /* Types for Logging */

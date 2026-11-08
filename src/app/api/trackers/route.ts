@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
-import { cleanLegend } from "@/features/trackers/legend"
+import { cleanLegend, cleanScale } from "@/features/trackers/legend"
 import { createTracker, listTrackers } from "@/features/trackers/trackers"
 
 // Trackers (day-by-day questions you answer yourself, on Stats → Trackers):
 //   GET                    → { trackers } (null: run `npm run db:push` once)
-//   POST { name, legend }  → the new tracker
+//   POST { name, legend } or { name, scale } → the new tracker
 export async function GET() {
   return NextResponse.json(
     { trackers: await listTrackers() },
@@ -15,14 +15,24 @@ export async function GET() {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const name = typeof body?.name === "string" ? body.name.trim() : ""
+  const scale = body?.scale !== undefined ? cleanScale(body.scale) : null
   const legend = cleanLegend(body?.legend)
-  if (!name || legend.length < 2)
+  if (!name)
+    return NextResponse.json({ error: "Give it a question." }, { status: 400 })
+  if (body?.scale !== undefined && !scale)
+    return NextResponse.json(
+      { error: "A scale needs a lowest number below its highest." },
+      { status: 400 },
+    )
+  if (!scale && legend.length < 2)
     return NextResponse.json(
       { error: "Give it a question and at least two answers." },
       { status: 400 },
     )
   try {
-    return NextResponse.json(await createTracker(name, legend))
+    return NextResponse.json(
+      await createTracker(name, scale ? { scale } : { legend }),
+    )
   } catch {
     return NextResponse.json(
       { error: "Trackers aren't set up yet: run `npm run db:push` once." },

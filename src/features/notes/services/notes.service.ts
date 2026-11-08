@@ -1,3 +1,4 @@
+import { offerUndo } from "@/features/undo/undo"
 import { prisma } from "@/lib/prisma"
 import { searchTopic } from "@/features/search/topic"
 import { dayKey } from "@/features/notes/lib/time"
@@ -9,6 +10,10 @@ import {
   parsePurposes,
 } from "@/features/notes/lib/topics"
 import { stripInline } from "@/features/notes/lib/markdown"
+import {
+  deleteWithBackup,
+  loadForBackup,
+} from "@/features/notes/services/delete.service"
 
 export async function createNote(data: {
   title: string
@@ -223,8 +228,12 @@ export async function createSavedChart(title: string, spec: string) {
   return prisma.savedChart.create({ data: { title, spec } })
 }
 
+// Unpin a chart. Gives a token to undo it.
 export async function deleteSavedChart(id: string) {
-  return prisma.savedChart.delete({ where: { id } })
+  const chart = await prisma.savedChart.delete({ where: { id } })
+  return offerUndo("Chart unpinned", () =>
+    prisma.savedChart.create({ data: chart }),
+  )
 }
 
 // Entries saved more than once: identical text on the same date (titles may
@@ -271,7 +280,8 @@ export async function findDuplicateGroups() {
 
 // Delete the duplicates. `keepIds` overrides which copy survives in a group
 // (any id from that group); otherwise the default pick is kept. The kept copy
-// stays public if any copy was public.
+// stays public if any copy was public. Backed up first, and can be undone
+// (gives the undo token).
 export async function removeDuplicates(keepIds: string[] = []) {
   const groups = (await findDuplicateGroups()).map((g) => {
     const members = [g.keep, ...g.remove]
@@ -285,16 +295,22 @@ export async function removeDuplicates(keepIds: string[] = []) {
     .filter((g) => !g.keep.published && g.remove.some((n) => n.published))
     .map((g) => g.keep.id)
 
-  await prisma.$transaction([
-    prisma.note.updateMany({
-      where: { id: { in: publish } },
-      data: { published: true },
-    }),
-    // highlights belong to their note and go with it
-    prisma.quote.deleteMany({ where: { noteId: { in: removeIds } } }),
-    prisma.note.deleteMany({ where: { id: { in: removeIds } } }),
-  ])
-  return removeIds.length
+  if (removeIds.length === 0) return { removed: 0, undo: null }
+  await prisma.note.updateMany({
+    where: { id: { in: publish } },
+    data: { published: true },
+  })
+  const { undo } = await deleteWithBackup(
+    await loadForBackup(removeIds),
+    "duplicates",
+    `${removeIds.length} duplicate${removeIds.length === 1 ? "" : "s"} removed`,
+    () =>
+      prisma.note.updateMany({
+        where: { id: { in: publish } },
+        data: { published: false },
+      }),
+  )
+  return { removed: removeIds.length, undo }
 }
 
 export async function setPurposes(noteId: string, purposes: string[]) {

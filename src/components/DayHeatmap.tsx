@@ -252,7 +252,7 @@ export function DayHeatmap({
         onMouseLeave={() => setHover(null)}
       >
         {/* the grid, with (in the slideshow) an arrow each side */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {nav?.prev}
           <div className="min-w-0 overflow-x-auto pb-1">
             <div className="inline-flex gap-2">

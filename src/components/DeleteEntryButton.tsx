@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -11,6 +12,7 @@ function DeleteEntryButtonInner({
   noteId,
   title,
   onDeleted,
+  onRestored,
   redirectTo,
   className = "",
   idleClassName = "",
@@ -20,6 +22,8 @@ function DeleteEntryButtonInner({
   title: string
   // e.g. drop it from a list already on screen
   onDeleted?: () => void
+  // undone: e.g. show it in that list again
+  onRestored?: () => void
   // where to go afterwards (the entry's own page no longer exists)
   redirectTo?: string
   className?: string
@@ -51,11 +55,18 @@ function DeleteEntryButtonInner({
       () => null,
     )
     setDeleting(false)
+    const data = await res?.json().catch(() => null)
     if (!res?.ok) {
-      const data = await res?.json().catch(() => null)
       setError(data?.error ?? "Couldn't delete")
       return
     }
+    showUndo({
+      label: `Deleted “${titleText(title)}”`,
+      token: data?.undo,
+      // back where it was: its own page, or the list it was in
+      onUndo: () =>
+        redirectTo ? router.push(`/notes/${noteId}`) : onRestored?.(),
+    })
     onDeleted?.()
     if (redirectTo) router.push(redirectTo)
     else router.refresh()

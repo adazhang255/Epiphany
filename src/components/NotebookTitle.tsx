@@ -104,7 +104,7 @@ export function NotebookTitle({
           onClick={start}
           aria-label="Rename this entry"
           title="Rename this entry"
-          className="shrink-0 font-sans text-sm text-stone-500 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100"
+          className="shrink-0 font-sans text-sm text-stone-500 opacity-0 transition hover:text-ember focus:opacity-100 group-hover/title:opacity-100 pointer-coarse:opacity-100"
         >
           ✎
         </button>

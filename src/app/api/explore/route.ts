@@ -3,7 +3,9 @@ import {
   askForChart,
   chartJobs,
   dismissChart,
+  restoreChart,
 } from "@/features/insights/chartJobs"
+import { offerUndo } from "@/features/undo/undo"
 
 // Charts asked for in words, made in the background (see chartJobs):
 //   POST   { question }  → the new job, queued; returns at once
@@ -33,5 +35,9 @@ export async function GET() {
 
 export async function DELETE(req: Request) {
   const id = new URL(req.url).searchParams.get("id") ?? ""
-  return NextResponse.json({ ok: dismissChart(id) })
+  const at = chartJobs().findIndex((j) => j.id === id)
+  const job = chartJobs()[at]
+  if (!job || !dismissChart(id)) return NextResponse.json({ ok: false })
+  const undo = offerUndo("Chart dismissed", async () => restoreChart(job, at))
+  return NextResponse.json({ ok: true, undo })
 }

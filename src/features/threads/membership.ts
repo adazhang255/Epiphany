@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { prisma } from "@/lib/prisma"
-import { threadField } from "@/features/threads/field"
+import type { Prisma } from "@/generated/prisma/client"
+import { parseThread, threadField } from "@/features/threads/field"
 
 // Changing which thread a passage is in, stored on the passage itself:
 // Quote.thread / Question.thread (see field.ts: null = automatic, "t-…" = a
@@ -30,6 +31,46 @@ async function setThread(ids: string[], thread: string | null) {
     }),
   ])
 }
+
+// How the given passages are threaded now (their thread, and for highlights
+// which question they answer), and a way to put that back: undo for taking
+// things out of threads.
+export async function keepThreading(where: {
+  quotes: Prisma.QuoteWhereInput
+  questions?: Prisma.QuestionWhereInput
+}) {
+  const [quotes, questions] = await Promise.all([
+    prisma.quote.findMany({
+      where: where.quotes,
+      select: { id: true, thread: true, replyToId: true, manual: true },
+    }),
+    where.questions
+      ? prisma.question.findMany({
+          where: where.questions,
+          select: { id: true, thread: true },
+        })
+      : [],
+  ])
+  return () =>
+    prisma.$transaction([
+      ...quotes.map(({ id, ...data }) =>
+        prisma.quote.updateMany({ where: { id }, data }),
+      ),
+      ...questions.map(({ id, ...data }) =>
+        prisma.question.updateMany({ where: { id }, data }),
+      ),
+    ])
+}
+
+// the passages behind ids as the page has them ("q-" + id for a question)
+const byIds = (ids: string[]) => ({
+  quotes: { id: { in: ids.filter((id) => !id.startsWith("q-")) } },
+  questions: {
+    id: {
+      in: ids.filter((id) => id.startsWith("q-")).map((id) => id.slice(2)),
+    },
+  },
+})
 
 // Put a passage in a thread. An automatic thread becomes one you arranged
 // (its passages keep it, so it stays together); a question's thread gets the
@@ -90,8 +131,10 @@ export async function renameThread(thread: ThreadRef, name: string) {
 }
 
 // Take a passage out of a thread: no longer an answer (question threads), or
-// left out of threads altogether. Nothing in the entry changes.
+// left out of threads altogether. Nothing in the entry changes. Gives a way
+// to put it back (false if it can't be removed).
 export async function removeFromThread(item: string, thread: ThreadRef) {
+  const restore = await keepThreading(byIds([item]))
   if (thread.kind === "qa") {
     if (item.startsWith("q-")) return false
     // kept as your highlight, so finding answers won't link it again
@@ -99,36 +142,90 @@ export async function removeFromThread(item: string, thread: ThreadRef) {
       where: { id: item },
       data: { replyToId: null, manual: true },
     })
-    return true
+    return restore
   }
   await setThread([item], "none")
-  return true
+  return restore
 }
 
 // Take a whole thread apart. Its passages are left out of threads (so the
 // automatic grouping doesn't put them back together); a question's thread
 // has its answers unlinked, kept as your highlights (so finding answers
-// won't link them again). The entries and highlights themselves stay.
+// won't link them again). The entries and highlights themselves stay. Gives
+// a way to put it back (false if it can't be removed).
 export async function removeThread(thread: ThreadRef) {
   if (thread.kind === "qa") {
     if (!thread.questionId) return false
+    const restore = await keepThreading({
+      quotes: { replyToId: thread.questionId },
+    })
     await prisma.quote.updateMany({
       where: { replyToId: thread.questionId },
       data: { replyToId: null, manual: true },
     })
-    return true
+    return restore
   }
   if (thread.kind === "pinned") {
     // everything carrying its id (and name), including any not listed
     const match = {
       OR: [{ thread: thread.id }, { thread: { startsWith: `${thread.id}::` } }],
     }
+    const restore = await keepThreading({ quotes: match, questions: match })
     await prisma.$transaction([
       prisma.quote.updateMany({ where: match, data: { thread: "none" } }),
       prisma.question.updateMany({ where: match, data: { thread: "none" } }),
     ])
-    return true
+    return restore
   }
+  const restore = await keepThreading(byIds(thread.memberIds))
   await setThread(thread.memberIds, "none")
-  return true
+  return restore
+}
+
+// Start a thread of your own from one passage, named `name`. Gives the new
+// thread's id. (A passage that was in another thread of yours moves.)
+export async function startThread(item: string, name: string) {
+  const id = `t-${randomUUID()}`
+  await setThread([item], threadField(id, name))
+  return id
+}
+
+// Merge thread `from` into thread `into` (neither a question's thread): one
+// thread of yours with every passage of both. It keeps `into`'s name, or
+// `from`'s if `into` has none. Gives the merged thread's id and a way to put
+// both back as they were (null if they can't be merged).
+export async function mergeThreads(from: ThreadRef, into: ThreadRef) {
+  if (from.kind === "qa" || into.kind === "qa" || from.id === into.id)
+    return null
+  const pinnedIds = [from, into]
+    .filter((t) => t.kind === "pinned")
+    .map((t) => t.id)
+  const carrying = pinnedIds.flatMap((id) => [
+    { thread: id },
+    { thread: { startsWith: `${id}::` } },
+  ])
+  // the passages shown in either, and all carrying either's id
+  const shown = byIds([...from.memberIds, ...into.memberIds])
+  const quotes = { OR: [shown.quotes, ...carrying] }
+  const questions = { OR: [shown.questions, ...carrying] }
+  const restore = await keepThreading({ quotes, questions })
+
+  const nameOf = async (t: ThreadRef) => {
+    if (t.kind !== "pinned") return null
+    const parsed = parseThread(await storedField(t.id))
+    return parsed.kind === "pinned" ? parsed.name : null
+  }
+  const name = (await nameOf(into)) ?? (await nameOf(from))
+  const id =
+    into.kind === "pinned"
+      ? into.id
+      : from.kind === "pinned"
+        ? from.id
+        : `t-${randomUUID()}`
+  const value = threadField(id, name)
+  await prisma.$transaction([
+    prisma.quote.updateMany({ where: quotes, data: { thread: value } }),
+    prisma.question.updateMany({ where: questions, data: { thread: value } }),
+  ])
+  return { id, restore }
 }

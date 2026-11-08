@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ChartJob } from "@/features/insights/chartJobs"
+import { showUndo } from "@/components/UndoToast"
 
 // Charts being made in the background (see chartJobs), for the Custom page
 // and the header. Checks once, then every couple of seconds while any is
@@ -86,12 +87,29 @@ export function useChartJobs(enabled = true, onUpdate?: ChartJobsUpdate) {
     [],
   )
 
-  const dismiss = useCallback(async (id: string) => {
-    setJobs((all) => all.filter((j) => j.id !== id))
-    await fetch(`/api/explore?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }).catch(() => null)
-  }, [])
+  const dismiss = useCallback(
+    async (id: string) => {
+      const at = jobs.findIndex((j) => j.id === id)
+      const job = jobs[at]
+      setJobs((all) => all.filter((j) => j.id !== id))
+      const res = await fetch(`/api/explore?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => null)
+      const data = await res?.json().catch(() => null)
+      showUndo({
+        label: "Chart dismissed",
+        token: data?.undo,
+        // back where it was in the list
+        onUndo: () =>
+          setJobs((all) =>
+            !job || all.some((j) => j.id === id)
+              ? all
+              : [...all.slice(0, at), job, ...all.slice(at)],
+          ),
+      })
+    },
+    [jobs],
+  )
 
   return { jobs, ask, dismiss }
 }

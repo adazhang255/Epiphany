@@ -56,7 +56,9 @@ export const ModelName = {
   SavedChart: 'SavedChart',
   Question: 'Question',
   Tracker: 'Tracker',
-  TrackerMark: 'TrackerMark'
+  TrackerMark: 'TrackerMark',
+  Inspiration: 'Inspiration',
+  Setting: 'Setting'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -156,6 +158,26 @@ export const TrackerMarkScalarFieldEnum = {
 } as const
 
 export type TrackerMarkScalarFieldEnum = (typeof TrackerMarkScalarFieldEnum)[keyof typeof TrackerMarkScalarFieldEnum]
+
+
+export const InspirationScalarFieldEnum = {
+  id: 'id',
+  text: 'text',
+  author: 'author',
+  source: 'source',
+  note: 'note',
+  createdAt: 'createdAt'
+} as const
+
+export type InspirationScalarFieldEnum = (typeof InspirationScalarFieldEnum)[keyof typeof InspirationScalarFieldEnum]
+
+
+export const SettingScalarFieldEnum = {
+  key: 'key',
+  value: 'value'
+} as const
+
+export type SettingScalarFieldEnum = (typeof SettingScalarFieldEnum)[keyof typeof SettingScalarFieldEnum]
 
 
 export const SortOrder = {

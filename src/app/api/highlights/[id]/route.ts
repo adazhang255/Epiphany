@@ -6,6 +6,7 @@ import {
   highlightsAtSpot,
   noteHighlights,
 } from "@/features/notes/services/highlights"
+import { offerUndo } from "@/features/undo/undo"
 
 // Change a highlight's type: { category }, or share it alone: { published }.
 // Change a highlight's type: { category }, a built-in type or a name of your
@@ -87,10 +88,19 @@ export async function DELETE(
   }
   const spot = new URL(req.url).searchParams.get("spot") === "1"
   const ids = spot ? await highlightsAtSpot(id) : [id]
+  // kept to put back on undo (same ids, so threads and answers stay linked)
+  const removed = await prisma.quote.findMany({ where: { id: { in: ids } } })
   await prisma.quote.deleteMany({ where: { id: { in: ids } } })
+  const undo = offerUndo(
+    removed.length === 1
+      ? "Highlight removed"
+      : `${removed.length} highlights removed`,
+    () => prisma.quote.createMany({ data: removed }),
+  )
   revalidatePath("/", "layout")
   return NextResponse.json({
     ok: true,
+    undo,
     removed: ids.length,
     highlights: await noteHighlights(found.noteId),
   })

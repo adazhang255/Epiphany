@@ -12,6 +12,9 @@ import { AddThoughtToThread } from "@/components/AddThoughtToThread"
 import { RemoveThreadButton } from "@/components/RemoveThreadButton"
 import { NewThread } from "@/components/NewThread"
 import { ThreadTopics } from "@/components/ThreadTopics"
+import { MergeThreadButton } from "@/components/MergeThreadButton"
+import { useThreadTitles } from "@/components/threadTitles"
+import type { ThreadRef } from "@/features/threads/membership"
 import { KeepThreadInPlace } from "@/components/KeepThreadInPlace"
 import { describeGap } from "@/features/notes/lib/time"
 import { MATCH, type ThreadView } from "@/features/threads/match"
@@ -20,6 +23,14 @@ import { EntryTitle } from "@/components/EntryTitle"
 // a thread's opening words, until it has a title
 const opening = (thread: ThreadView) =>
   `${thread.members[0].quote.split(/\s+/).slice(0, 5).join(" ")}…`
+
+// what the server needs to know to change a thread
+const refOf = (thread: ThreadView): ThreadRef => ({
+  id: thread.id,
+  kind: thread.kind,
+  questionId: thread.questionId,
+  memberIds: thread.members.map((m) => m.id),
+})
 
 // "May 14, 2023"
 function fullDate(date: Date) {
@@ -45,7 +56,25 @@ export function ThreadsView({
   // threads you just removed, hidden while the page rebuilds
   const [hidden, setHidden] = useState<string[]>([])
   const [removeError, setRemoveError] = useState("")
-  const threads = byLevel[level].filter((t) => !hidden.includes(t.id))
+  const all = byLevel[level].filter((t) => !hidden.includes(t.id))
+  // finding a thread: by its title, its passages' words or their entries'
+  // titles; or only the ones you named
+  const [q, setQ] = useState("")
+  const [onlyNamed, setOnlyNamed] = useState(false)
+  const shared = useThreadTitles()
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  const threads = all.filter((t) => {
+    if (onlyNamed && !t.named) return false
+    if (words.length === 0) return true
+    const text = [
+      t.title ?? shared.get(t.id) ?? "",
+      ...t.members.flatMap((m) => [m.quote, m.noteTitle]),
+    ]
+      .join(" ")
+      .toLowerCase()
+    return words.every((w) => text.includes(w))
+  })
+  const filtering = words.length > 0 || onlyNamed
 
   return (
     <div>
@@ -83,6 +112,32 @@ export function ThreadsView({
           <NewThread />
           <EmbedMissingButton count={missing} />
         </div>
+        {all.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Find a thread…"
+              aria-label="Find a thread by its words"
+              className="w-full max-w-xs rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm text-stone-100 outline-none placeholder:text-stone-500 focus:border-white/30"
+            />
+            <label className="flex items-center gap-2 text-sm text-stone-400">
+              <input
+                type="checkbox"
+                checked={onlyNamed}
+                onChange={(e) => setOnlyNamed(e.target.checked)}
+                className="accent-ember"
+              />
+              Only ones I named
+            </label>
+            {filtering && (
+              <span className="text-xs text-stone-500">
+                {threads.length} of {all.length}
+              </span>
+            )}
+          </div>
+        )}
         <ThreadTopics
           topics={threads.map((t) => ({
             id: t.id,
@@ -102,7 +157,21 @@ export function ThreadsView({
             .join(",")}
         />
 
-        {threads.length === 0 ? (
+        {threads.length === 0 && filtering ? (
+          <p className="rounded-xl border border-dashed border-white/10 px-6 py-16 text-center text-stone-500">
+            No thread matches.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setQ("")
+                setOnlyNamed(false)
+              }}
+              className="underline hover:text-stone-300"
+            >
+              Show all
+            </button>
+          </p>
+        ) : threads.length === 0 ? (
           <p className="rounded-xl border border-dashed border-white/10 px-6 py-16 text-center text-stone-500">
             No threads yet. Threads appear once you’ve returned to an idea on a
             different day.
@@ -148,14 +217,7 @@ export function ThreadsView({
                 />
                 <div className="mb-5 mt-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="flex flex-wrap items-center gap-2">
-                    <AddHighlightToThread
-                      thread={{
-                        id: thread.id,
-                        kind: thread.kind,
-                        questionId: thread.questionId,
-                        memberIds: thread.members.map((m) => m.id),
-                      }}
-                    />
+                    <AddHighlightToThread thread={refOf(thread)} />
                     <RemoveThreadButton
                       onHide={(hide, error) => {
                         setRemoveError(
@@ -167,13 +229,20 @@ export function ThreadsView({
                             : ids.filter((id) => id !== thread.id),
                         )
                       }}
-                      thread={{
-                        id: thread.id,
-                        kind: thread.kind,
-                        questionId: thread.questionId,
-                        memberIds: thread.members.map((m) => m.id),
-                      }}
+                      thread={refOf(thread)}
                     />
+                    {thread.kind !== "qa" && (
+                      <MergeThreadButton
+                        thread={refOf(thread)}
+                        others={all
+                          .filter((o) => o.id !== thread.id && o.kind !== "qa")
+                          .map((o) => ({
+                            thread: refOf(o),
+                            title: o.title,
+                            fallback: opening(o),
+                          }))}
+                      />
+                    )}
                   </span>
                   <span className="font-mono text-[11px] uppercase tracking-widest text-stone-500">
                     {thread.members.length}{" "}
@@ -211,12 +280,7 @@ export function ThreadsView({
                             {!(thread.kind === "qa" && i === 0) && (
                               <RemoveFromThreadButton
                                 item={member.id}
-                                thread={{
-                                  id: thread.id,
-                                  kind: thread.kind,
-                                  questionId: thread.questionId,
-                                  memberIds: thread.members.map((m) => m.id),
-                                }}
+                                thread={refOf(thread)}
                               />
                             )}
                           </span>
@@ -236,14 +300,7 @@ export function ThreadsView({
                       </li>
                     )
                   })}
-                  <AddThoughtToThread
-                    thread={{
-                      id: thread.id,
-                      kind: thread.kind,
-                      questionId: thread.questionId,
-                      memberIds: thread.members.map((m) => m.id),
-                    }}
-                  />
+                  <AddThoughtToThread thread={refOf(thread)} />
                 </ol>
               </li>
             ))}

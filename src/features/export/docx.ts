@@ -15,7 +15,7 @@ const color = ACCENT.slice(1)
 const BODY = 24 // half-points: 12pt
 
 // paragraphs split on blank lines; single line breaks kept inside them;
-// bold, italic and bullets as written (see lib/markdown)
+// bold, italic, bullets, headings and quotes as written (see lib/markdown)
 function paragraphs(text: string) {
   return text
     .trim()
@@ -29,8 +29,11 @@ function paragraphs(text: string) {
               (run, j) =>
                 new TextRun({
                   text: run.text,
-                  bold: run.bold || undefined,
-                  italics: run.italic || undefined,
+                  bold: run.bold || run.heading > 0 || undefined,
+                  italics: run.italic || run.quote || undefined,
+                  color: run.quote ? "666666" : undefined,
+                  size:
+                    run.heading === 1 ? 32 : run.heading === 2 ? 28 : undefined,
                   break: i > 0 && j === 0 ? 1 : undefined,
                 }),
             ),

@@ -35,15 +35,18 @@ function ChartJobsIndicatorInner() {
         href="/custom"
         role="status"
         title={`Making a chart for “${making[0].question}”`}
-        className="flex shrink-0 items-center gap-1 rounded-full border border-ember/30 bg-ember/[0.06] py-0.5 pl-1 pr-3 text-xs text-stone-300"
+        className="flex shrink-0 items-center gap-1 rounded-full border border-ember/30 bg-ember/[0.06] py-0.5 pl-1 pr-3 text-xs text-stone-300 max-sm:pr-1"
       >
         <span className="-my-1 scale-[0.7]">
           <Walker walking flipped={false} />
         </span>
-        Making chart
-        {making.length > 1 && (
-          <span className="text-stone-500">· {making.length}</span>
-        )}
+        {/* on phones only the walker shows; the words are still read out */}
+        <span className="max-sm:sr-only">
+          Making chart
+          {making.length > 1 && (
+            <span className="text-stone-500">· {making.length}</span>
+          )}
+        </span>
       </Link>
     )
   }
@@ -56,12 +59,14 @@ function ChartJobsIndicatorInner() {
             : "/custom"
         }
         role="status"
-        className="save-toast flex shrink-0 items-center gap-1.5 rounded-full border border-ember/30 px-3 py-1 text-xs text-stone-300"
+        className="save-toast flex shrink-0 items-center gap-1.5 rounded-full border border-ember/30 px-3 py-1 text-xs text-stone-300 max-sm:px-2"
       >
         <span className="text-ember">✓</span>
-        {ready.state === "done"
-          ? "Chart ready"
-          : "Couldn’t make the chart (is Ollama running?)"}
+        <span className="max-sm:sr-only">
+          {ready.state === "done"
+            ? "Chart ready"
+            : "Couldn’t make the chart (is Ollama running?)"}
+        </span>
       </Link>
     )
   }

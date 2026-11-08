@@ -21,9 +21,10 @@ export function findQuote(content: string, quote: string): QuoteRange | null {
     return { start: exact, end: exact + trimmed.length }
   }
 
-  // formatting markers (**bold**, *italic*) in the text may sit between
-  // any of the quote's characters: highlights are kept without them
-  const formatted = /[*_]/.test(content) && !/[*_]/.test(trimmed)
+  // formatting markers (**bold**, *italic*, a line's "# " or "> ") in the
+  // text may sit between the quote's characters: highlights are kept
+  // without them
+  const formatted = /[*_#>]/.test(content) && !/[*_]/.test(trimmed)
   const char = (c: string) =>
     escapeRegExp(c).replace(/["“”]/g, '["“”]').replace(/['‘’]/g, "['‘’]")
   const pattern = trimmed
@@ -31,7 +32,8 @@ export function findQuote(content: string, quote: string): QuoteRange | null {
     .map((word) =>
       formatted ? [...word].map(char).join("[*_]{0,2}") : char(word),
     )
-    .join(formatted ? "[*_]*\\s+[*_]*" : "\\s+")
+    // (and a line's "# " or "> " after a line break)
+    .join(formatted ? "[*_]*\\s+(?:[#>]+[ \\t]*)?[*_]*" : "\\s+")
   const match = new RegExp(pattern, "i").exec(content)
 
   return match

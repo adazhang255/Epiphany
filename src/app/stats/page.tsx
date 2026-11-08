@@ -14,8 +14,8 @@ import { YearInReview } from "@/components/YearInReview"
 import { yearReviews } from "@/features/insights/yearReview"
 import { getThreads } from "@/features/threads/build"
 import {
-  profileJob,
   readProfile,
+  startMonthlyProfile,
   writeProfile,
 } from "@/features/profile/profile"
 import { PUBLIC_SITE } from "@/lib/site-mode"
@@ -24,6 +24,8 @@ import { DayHeatmap } from "@/components/DayHeatmap"
 import { writingDays } from "@/features/insights/writingDays"
 import { getInsightsDataset } from "@/features/insights/dataset"
 import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
+import { milestones } from "@/features/insights/milestones"
+import { Milestones } from "@/components/Milestones"
 
 export const dynamic = "force-dynamic"
 
@@ -39,6 +41,8 @@ export default async function StatsPage() {
     getThreads("related").then((t) => t.threads),
   ])
   const years = yearReviews(memories, threads)
+  // a month old, and you've written since: rewritten in the background
+  const profileJob = PUBLIC_SITE ? null : await startMonthlyProfile(profile)
   const pinned = charts.flatMap((chart) => {
     try {
       return [{ id: chart.id, spec: parseSpec(JSON.parse(chart.spec)) }]
@@ -110,6 +114,15 @@ export default async function StatsPage() {
           </div>
         </dl>
 
+        {/* about you as the writer: not on the public site */}
+        {!PUBLIC_SITE && (
+          <Milestones
+            list={milestones(
+              notes.map((n) => ({ date: new Date(n.date), words: n.words })),
+            )}
+          />
+        )}
+
         <div className="space-y-3">
           <AnalyzeAllButton noteIds={unanalyzed} />
           <ReanalyzeAllButton noteIds={notes.map((n) => n.id)} />
@@ -118,10 +131,7 @@ export default async function StatsPage() {
           />
         </div>
 
-        <WriterProfile
-          saved={profile}
-          job={PUBLIC_SITE ? null : profileJob()}
-        />
+        <WriterProfile saved={profile} job={profileJob} />
 
         <YearInReview years={years} />
 

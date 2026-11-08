@@ -1,14 +1,13 @@
 import { prisma } from "@/lib/prisma"
-import { parseEmbedding } from "@/features/notes/lib/similarity"
 import {
   buildThreads,
-  similarPairs,
   type Thread,
   type ThreadQuote,
 } from "@/features/notes/lib/threads"
 import { highlightType } from "@/features/notes/lib/topics"
 import { knownTitle } from "@/features/threads/titles"
 import { parseThread } from "@/features/threads/field"
+import { cachedPairs } from "@/features/threads/pairCache"
 
 // Every thread on the Threads page, from three sources:
 //   - "pinned": passages you put in a thread (their `thread` is that id)
@@ -28,22 +27,34 @@ export async function getThreads(level: MatchLevel = "related") {
   return { threads: byLevel[level], missing }
 }
 
-// The threads at several match levels at once: everything is loaded, and
-// every pair compared, once (that comparison is most of the work).
+// The threads at several match levels at once. Passages are loaded without
+// their embeddings: which ones are alike is kept between visits (see
+// pairCache), and only new or changed ones are compared.
 export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
-  const [rows, questions] = await Promise.all([
-    prisma.quote.findMany({
-      include: { note: { select: { id: true, title: true, date: true } } },
-    }),
+  const note = { select: { id: true, title: true, date: true } }
+  const [rows, questions, embedded, embeddedQuestions] = await Promise.all([
+    prisma.quote.findMany({ omit: { embedding: true }, include: { note } }),
     prisma.question.findMany({
       where: { NOT: { kind: { startsWith: "not:" } } },
+      omit: { embedding: true },
       include: {
-        note: { select: { id: true, title: true, date: true } },
-        replies: {
-          include: { note: { select: { id: true, title: true, date: true } } },
-        },
+        note,
+        replies: { omit: { embedding: true }, include: { note } },
       },
     }),
+    // which have an embedding (to be grouped by similarity)
+    prisma.quote.findMany({
+      where: { embedding: { not: null } },
+      select: { id: true },
+    }),
+    prisma.question.findMany({
+      where: { embedding: { not: null } },
+      select: { id: true },
+    }),
+  ])
+  const hasEmbedding = new Set([
+    ...embedded.map((q) => q.id),
+    ...embeddedQuestions.map((q) => `q-${q.id}`),
   ])
 
   const fromQuote = (q: (typeof rows)[number]): ThreadQuote => ({
@@ -53,7 +64,7 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
     noteId: q.note.id,
     noteTitle: q.note.title,
     date: q.note.date,
-    embedding: parseEmbedding(q.embedding) ?? [],
+    embedding: [],
     kind: highlightType(q.category),
   })
   const fromQuestion = (q: (typeof questions)[number]): ThreadQuote => ({
@@ -63,13 +74,19 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
     noteId: q.note.id,
     noteTitle: q.note.title,
     date: q.note.date,
-    embedding: parseEmbedding(q.embedding) ?? [],
+    embedding: [],
     kind: "Question",
     href: `/notes/${q.note.id}`,
   })
   // a question already highlighted takes part as that highlight
+  const byNote = new Map<string, string[]>()
+  for (const r of rows) {
+    const list = byNote.get(r.noteId)
+    if (list) list.push(r.quote)
+    else byNote.set(r.noteId, [r.quote])
+  }
   const highlighted = (q: (typeof questions)[number]) =>
-    rows.some((r) => r.noteId === q.noteId && r.quote.includes(q.text))
+    (byNote.get(q.noteId) ?? []).some((quote) => quote.includes(q.text))
 
   // threads you arranged (and maybe named)
   const pinned = new Map<string, ThreadQuote[]>()
@@ -77,7 +94,9 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
   const pin = (field: string | null, member: ThreadQuote) => {
     const t = parseThread(field)
     if (t.kind !== "pinned") return
-    pinned.set(t.id, [...(pinned.get(t.id) ?? []), member])
+    const list = pinned.get(t.id)
+    if (list) list.push(member)
+    else pinned.set(t.id, [member])
     if (t.name) names.set(t.id, t.name)
   }
   for (const r of rows) pin(r.thread, fromQuote(r))
@@ -87,9 +106,8 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
   const free = [
     ...rows.filter((r) => !r.thread).map(fromQuote),
     ...questions.filter((q) => !q.thread && !highlighted(q)).map(fromQuestion),
-  ].filter((m) => m.embedding.length > 0)
-  const floor = Math.min(...levels.map((l) => MATCH[l].threshold))
-  const pairs = similarPairs(free, floor)
+  ].filter((m) => hasEmbedding.has(m.id))
+  const pairs = await cachedPairs(free)
 
   const ids = (t: Thread) =>
     t.members.map((m) => m.id).filter((id) => !id.startsWith("q-"))
@@ -151,5 +169,8 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
     )
     byLevel[level] = threads
   }
-  return { byLevel, missing: rows.filter((q) => !q.embedding).length }
+  return {
+    byLevel,
+    missing: rows.filter((q) => !hasEmbedding.has(q.id)).length,
+  }
 }

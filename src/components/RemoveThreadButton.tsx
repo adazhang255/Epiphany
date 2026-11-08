@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -52,6 +53,12 @@ function RemoveThreadButtonInner({
       onHide?.(false, message)
       return
     }
+    const data = await res.json().catch(() => null)
+    showUndo({
+      label: "Thread removed",
+      token: data?.undo,
+      onUndo: () => onHide?.(false),
+    })
     setAsking(false)
     router.refresh()
   }

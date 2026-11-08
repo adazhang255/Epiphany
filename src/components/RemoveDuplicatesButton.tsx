@@ -1,5 +1,6 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -60,6 +61,11 @@ function RemoveDuplicatesButtonInner({ groups }: { groups: DuplicateGroup[] }) {
       setError("Couldn’t remove them. Nothing was deleted.")
       return
     }
+    const data = await res.json().catch(() => null)
+    showUndo({
+      label: `${data?.removed ?? total} duplicate${(data?.removed ?? total) === 1 ? "" : "s"} removed`,
+      token: data?.undo,
+    })
     setConfirming(false)
     router.refresh()
   }

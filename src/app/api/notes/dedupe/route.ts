@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const keep = Array.isArray(body?.keep)
     ? body.keep.filter((id: unknown): id is string => typeof id === "string")
     : []
-  const removed = await removeDuplicates(keep)
+  const { removed, undo } = await removeDuplicates(keep)
   revalidatePath("/", "layout")
-  return NextResponse.json({ removed })
+  return NextResponse.json({ removed, undo })
 }

@@ -1,19 +1,22 @@
 "use client"
 
+import { showUndo } from "@/components/UndoToast"
+
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ANALYSIS_EVENT } from "@/components/AnalysisIndicator"
 import { Walker } from "@/components/DraggableTimeline"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { FormatBar, formatKeyDown } from "@/components/FormatBar"
+import { FormattedText, LiveFormatted } from "@/components/Formatted"
+import { useHeaderSave } from "@/components/writeStatus"
+import { SaveCancel } from "@/components/SaveCancel"
+import { SENTIMENT_COLORS, SENTIMENT_LABELS } from "@/features/notes/lib/topics"
 import {
-  SENTIMENT_COLORS,
-  SENTIMENT_LABELS,
-} from "@/features/notes/lib/topics"
-import {
-  NEW_ENTRY_DRAFT,
-  confirmDiscard,
   loadDraft,
+  newEntryDraftKey,
+  writeHref,
+  saveDraft,
   useDraftAutosave,
   useUnsavedWarning,
   type NewEntryDraft,
@@ -32,15 +35,25 @@ function today() {
 }
 
 // `custom`: categories of your own already in use, offered beside the
-// built-in ones
-export function NoteComposer({ custom }: { custom: string[] }) {
+// built-in ones. `draftId`: which of your drafts this is ("" for the first,
+// which the notebook's blank page shares)
+export function NoteComposer({
+  custom,
+  draftId = "",
+}: {
+  custom: string[]
+  draftId?: string
+}) {
   const router = useRouter()
+  const draftKey = newEntryDraftKey(draftId)
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(today)
   // "HH:MM", or "" for none given (then the time it's saved is shown)
   const [time, setTime] = useState("")
   const [content, setContent] = useState("")
   const box = useRef<HTMLTextAreaElement>(null)
+  // the text formatted, instead of the text box
+  const [preview, setPreview] = useState(false)
   const [categories, setCategories] = useState<string[]>([])
   const [tone, setTone] = useState<number | null>(null)
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
@@ -53,7 +66,7 @@ export function NoteComposer({ custom }: { custom: string[] }) {
   const [fromDraft, setFromDraft] = useState<NewEntryDraft | null>(null)
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- reads browser storage, which the server can't */
-    const d = loadDraft<NewEntryDraft>(NEW_ENTRY_DRAFT)
+    const d = loadDraft<NewEntryDraft>(draftKey)
     if (d) {
       setFromDraft(d)
       setTitle(d.title ?? "")
@@ -66,7 +79,7 @@ export function NoteComposer({ custom }: { custom: string[] }) {
     }
     setReady(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [])
+  }, [draftKey])
   const draft = useMemo<NewEntryDraft | null>(() => {
     if (!title.trim() && !content.trim()) return null
     const d = fromDraft
@@ -83,26 +96,32 @@ export function NoteComposer({ custom }: { custom: string[] }) {
       content,
     }
   }, [title, date, time, content, categories, tone, fromDraft])
-  const clearDraft = useDraftAutosave(NEW_ENTRY_DRAFT, draft, ready)
+  const clearDraft = useDraftAutosave(draftKey, draft, ready)
   useUnsavedWarning(draft !== null && status === "idle")
 
-  function discard() {
-    if (!confirmDiscard("this entry")) return
+  // Cancel: leave without it; "Undo" keeps it and comes back to it
+  function cancel() {
+    const was = draft
     clearDraft()
-    setFromDraft(null)
-    setTitle("")
-    setContent("")
-    setCategories([])
-    setTone(null)
-    setTime("")
-    setDate(today())
-    setRestored(false)
+    if (was)
+      showUndo({
+        label: "Draft discarded",
+        onUndo: () => {
+          saveDraft(draftKey, was)
+          router.push(writeHref(draftId))
+        },
+      })
+    if (window.history.length > 1) router.back()
+    else router.push("/")
   }
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault()
+  async function save(event?: React.FormEvent) {
+    event?.preventDefault()
     if (!content.trim()) {
       setError("Write something before saving.")
+      // (saving from the header: the text box may be out of sight)
+      setPreview(false)
+      requestAnimationFrame(() => box.current?.focus())
       return
     }
 
@@ -157,8 +176,21 @@ export function NoteComposer({ custom }: { custom: string[] }) {
     window.dispatchEvent(new Event(ANALYSIS_EVENT))
     setStatus("saved")
     await new Promise((r) => setTimeout(r, 700))
-    router.push(`/notes/${note.id}?saved=1${missed ? "&missed=highlights" : ""}`)
+    router.push(
+      `/notes/${note.id}?saved=1${missed ? "&missed=highlights" : ""}`,
+    )
   }
+
+  // grow with the writing, so it lines up with the formatted copy under it
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [content, preview])
+
+  // the header's Write button saves this entry while it's on the page
+  useHeaderSave(true, status, save)
 
   const inputClass =
     "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-stone-100 outline-none focus:border-white/30"
@@ -202,17 +234,41 @@ export function NoteComposer({ custom }: { custom: string[] }) {
           <label htmlFor="entry-text" className="text-sm text-stone-400">
             Entry
           </label>
-          <FormatBar box={box} />
+          <FormatBar box={box} preview={preview} onPreview={setPreview} />
         </div>
-        <textarea
-          id="entry-text"
-          ref={box}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={formatKeyDown}
-          rows={12}
-          className="notebook w-full resize-y rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
-        />
+        {/* the text box sits on a copy of the text, formatted as you type */}
+        <div className={preview ? "hidden" : "relative"}>
+          <div
+            aria-hidden
+            className="notebook live-copy pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent py-3 pr-4 font-serif text-[18px]"
+          >
+            <LiveFormatted parts={[{ text: content }]} />
+            {"\u200b"}
+          </div>
+          <textarea
+            id="entry-text"
+            ref={box}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={formatKeyDown}
+            rows={12}
+            style={{ background: "transparent" }}
+            className="notebook live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
+          />
+        </div>
+        {preview && (
+          <div
+            onClick={() => setPreview(false)}
+            title="Click to go back to writing"
+            className="notebook min-h-[22rem] cursor-text whitespace-pre-wrap break-words rounded-xl border border-ember/25 py-3 pr-4 font-serif text-[18px] text-stone-200"
+          >
+            {content.trim() ? (
+              <FormattedText text={content} />
+            ) : (
+              <span className="text-stone-600">Nothing written yet.</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -280,32 +336,21 @@ export function NoteComposer({ custom }: { custom: string[] }) {
       </div>
 
       {status === "idle" ? (
-        <div className="flex items-center justify-between gap-4 pt-2">
-          <p className="text-sm text-rose-300/80" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 pt-2">
+          <p
+            className="mr-auto text-sm text-rose-300/80 empty:hidden"
+            aria-live="polite"
+          >
             {error}
           </p>
-          <span className="ml-auto flex items-center gap-3">
-            {draft && (
-              <span className="text-xs text-stone-500">
-                {restored
-                  ? "Your unsaved draft, brought back · "
-                  : "Draft kept as you type · "}
-                <button
-                  type="button"
-                  onClick={discard}
-                  className="underline decoration-dotted hover:text-stone-300"
-                >
-                  discard
-                </button>
-              </span>
-            )}
-            <button
-              type="submit"
-              className="rounded-full bg-ink px-6 py-2.5 text-sm font-medium text-stone-900 transition hover:bg-white"
-            >
-              Save entry
-            </button>
-          </span>
+          {draft && !error && (
+            <span className="mr-auto text-xs text-stone-500">
+              {restored
+                ? "Your unsaved draft, brought back"
+                : "Draft kept as you type"}
+            </span>
+          )}
+          <SaveCancel onSave={save} onCancel={cancel} saving={false} />
         </div>
       ) : (
         <div
