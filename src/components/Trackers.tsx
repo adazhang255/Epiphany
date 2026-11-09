@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { showUndo } from "@/components/UndoToast"
 import {
   createContext,
@@ -1180,6 +1181,9 @@ function Square({
 
 export function TodayTrackers() {
   const { trackers, today, set } = useTrackers()
+  const router = useRouter()
+  // a tracker's own slide on the Trackers page
+  const open = (t: TrackerView) => `/trackers?show=${encodeURIComponent(t.id)}`
   const [error, setError] = useState("")
   // (null: the tables aren't set up)
   if (!trackers) return null
@@ -1251,10 +1255,24 @@ export function TodayTrackers() {
             return (
               <li
                 key={t.id}
-                className="rounded-xl border border-white/[0.07] bg-panel px-3.5 py-2.5"
+                // the card opens its tracker (answering stays here)
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("button, input")) return
+                  router.push(open(t))
+                }}
+                tabIndex={0}
+                aria-label={`${t.name}: today's answer, or Enter to see its year`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.target === e.currentTarget)
+                    router.push(open(t))
+                }}
+                title={`${t.name}: see its year`}
+                className="group cursor-pointer rounded-xl border border-white/[0.07] bg-panel px-3.5 py-2.5 transition hover:border-white/20"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm text-stone-200">{t.name}</p>
+                  <p className="truncate text-sm text-stone-200 group-hover:text-ink">
+                    {t.name}
+                  </p>
                   {t.scale ? (
                     <span className="flex shrink-0 items-center gap-1 text-xs text-stone-500">
                       {/* the number, exactly (any in range) */}
@@ -1387,23 +1405,27 @@ const WRITING = "writing"
 
 export function Trackers({
   days,
+  show,
 }: {
   // your writing, day by day: the first slide
   days: Record<string, HeatmapDay>
+  // a tracker to open on (one tapped on the home page), kept as the choice
+  show?: string
 }) {
   const { trackers, today, set } = useTrackers()
   const actions = useTrackerActions()
   const [form, setForm] = useState<"new" | string | null>(null)
-  const [current, setCurrent] = useState(WRITING)
+  const [current, setCurrent] = useState(show ?? WRITING)
 
-  // the slide chosen last time in this browser
+  // the slide asked for, or else the one chosen last time in this browser
   useEffect(() => {
     try {
+      if (show) window.localStorage.setItem(SLIDE_KEY, show)
       const saved = window.localStorage.getItem(SLIDE_KEY)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reads browser storage, which the server can't
       if (saved) setCurrent(saved)
     } catch {}
-  }, [])
+  }, [show])
   const choose = (id: string) => {
     setCurrent(id)
     try {

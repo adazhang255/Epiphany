@@ -9,7 +9,13 @@ export const dynamic = "force-dynamic"
 
 // Day by day: your writing is one tracker, the ones you answer yourself
 // ("How am I feeling?") are the others. Not on the public site.
-export default async function TrackersPage() {
+export default async function TrackersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ show?: string }>
+}) {
+  // a tracker to open on (from the home page's check-in)
+  const { show } = await searchParams
   const [notes, trackers] = await Promise.all([
     getInsightsDataset(),
     listTrackers(),
@@ -29,7 +35,7 @@ export default async function TrackersPage() {
               Your days, tracked
             </h1>
           </header>
-          <Trackers days={days} />
+          <Trackers days={days} show={show} />
         </div>
       </div>
     </TrackersProvider>
