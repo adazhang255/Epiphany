@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { useTopicSearch } from "@/components/useTopicSearch"
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import type { NotebookNote } from "@/features/notes/services/notes.service"
+import type { TrackerView } from "@/features/trackers/trackers"
 import { NotebookFeed } from "@/components/NotebookFeed"
 import { TopicSearch } from "@/components/TopicSearch"
 import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
@@ -23,10 +24,12 @@ export function NotebookView({
   notes: all,
   facets,
   custom,
+  trackers = [],
 }: {
   notes: NotebookNote[]
   facets: NotebookFacets
   custom: string[]
+  trackers?: TrackerView[]
 }) {
   const params = useSearchParams()
   const filter =
@@ -190,6 +193,7 @@ export function NotebookView({
           category={category}
           q={q}
           custom={custom}
+          trackers={trackers}
         />
       )}
     </div>

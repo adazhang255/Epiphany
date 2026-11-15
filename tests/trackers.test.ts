@@ -15,6 +15,11 @@ import {
   scaleColor,
   scaleValue,
   storeLegend,
+  cleanRemap,
+  groupOf,
+  groupScale,
+  stepCount,
+  scaleEnds,
 } from "@/features/trackers/legend"
 
 describe("tracker legends", () => {
@@ -132,5 +137,86 @@ describe("tracker scales", () => {
       legend: answers,
       scale: null,
     })
+  })
+})
+
+describe("a scale turned into answers", () => {
+  const whole = cleanScale({ min: 1, max: 5, step: 1 })!
+  const tenths = cleanScale({ min: 1, max: 10, step: 0, unit: "h" })!
+
+  it("gives each number its own answer on a short stepped scale", () => {
+    expect(stepCount(whole)).toBe(5)
+    const g = groupScale(whole, 5)
+    expect(g.map((x) => x.label)).toEqual(["1", "2", "3", "4", "5"])
+    expect(groupOf(g, 4)?.label).toBe("4")
+    // coloured as the scale colours them
+    expect(g[0].color).toBe(scaleColor(whole, 1))
+  })
+
+  it("groups whole steps evenly, every number in one group", () => {
+    const steps = cleanScale({ min: 1, max: 10, step: 1 })!
+    expect(stepCount(steps)).toBeNull()
+    const g = groupScale(steps, 3)
+    expect(g.map((x) => x.label)).toEqual(["1–3", "4–6", "7–10"])
+    for (let n = 1; n <= 10; n++) expect(groupOf(g, n)).toBeDefined()
+    expect(groupOf(g, 3)?.key).toBe(g[0].key)
+    expect(groupOf(g, 10)?.key).toBe(g[2].key)
+  })
+
+  it("splits any-number scales into stretches, ends included", () => {
+    expect(stepCount(tenths)).toBeNull()
+    const g = groupScale(tenths, 3)
+    expect(g.map((x) => x.label)).toEqual(["1–4 h", "4–7 h", "7–10 h"])
+    expect(groupOf(g, 1)?.key).toBe(g[0].key)
+    // a boundary goes to the stretch it starts
+    expect(groupOf(g, 4)?.key).toBe(g[1].key)
+    expect(groupOf(g, 6.99)?.key).toBe(g[1].key)
+    expect(groupOf(g, 10)?.key).toBe(g[2].key)
+    // the answers are a usable legend
+    expect(cleanLegend(g)).toHaveLength(3)
+  })
+
+  it("takes a remap of answers, clearing what isn't one", () => {
+    expect(cleanRemap({ "gym-1": "3", "worked-0": null, x: 5 })).toEqual({
+      "gym-1": "3",
+      "worked-0": null,
+      x: null,
+    })
+    expect(cleanRemap(["a"])).toBeNull()
+    expect(cleanRemap(null)).toBeNull()
+  })
+})
+
+describe("a scale in one colour", () => {
+  const base = { min: 0, max: 10, high: { label: "", color: "#5598e7" } }
+  const lum = (hex: string) =>
+    [1, 3, 5].reduce((n, i) => n + parseInt(hex.slice(i, i + 2), 16), 0)
+
+  it("keeps two colours unless asked, and remembers the choice", () => {
+    expect(cleanScale(base)!.style).toBe("blend")
+    expect(cleanScale({ ...base, style: "nonsense" })!.style).toBe("blend")
+    const fade = cleanScale({ ...base, style: "fade" })!
+    expect(parseLegend(storeLegend({ scale: fade })).scale!.style).toBe("fade")
+  })
+
+  it("fades from faint to the full colour", () => {
+    const fade = cleanScale({ ...base, style: "fade" })!
+    const [low, high] = scaleEnds(fade)
+    expect(high).toBe("#5598e7")
+    expect(lum(low)).toBeLessThan(lum(high))
+    expect(scaleColor(fade, 10)).toBe("#5598e7")
+    expect(scaleColor(fade, 0)).toBe(low)
+  })
+
+  it("goes from light to dark, the low end's own colour unused", () => {
+    const shade = cleanScale({
+      ...base,
+      style: "shade",
+      low: { label: "", color: "#ff0000" },
+    })!
+    const [low, high] = scaleEnds(shade)
+    expect(lum(low)).toBeGreaterThan(lum("#5598e7"))
+    expect(lum(high)).toBeLessThan(lum("#5598e7"))
+    expect(scaleColor(shade, 5)).not.toMatch(/^#ff/)
   })
 })

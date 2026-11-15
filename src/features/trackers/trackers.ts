@@ -68,7 +68,12 @@ export async function createTracker(name: string, kind: TrackerKind) {
 
 export async function updateTracker(
   id: string,
-  change: { name?: string; kind?: TrackerKind },
+  change: {
+    name?: string
+    kind?: TrackerKind
+    // days' answers to change first ({ old: new }, null clears the day)
+    remap?: Record<string, string | null>
+  },
 ) {
   const tracker = await prisma.tracker.update({
     where: { id },
@@ -77,6 +82,24 @@ export async function updateTracker(
       ...(change.kind ? { legend: storeLegend(change.kind) } : {}),
     },
   })
+  const remap = change.remap
+  if (remap) {
+    const marks = await prisma.trackerMark.findMany({
+      where: { trackerId: id },
+      select: { id: true, value: true },
+    })
+    const changing = marks.filter((m) => Object.hasOwn(remap, m.value))
+    await prisma.$transaction(
+      changing.map((m) =>
+        remap[m.value] === null
+          ? prisma.trackerMark.delete({ where: { id: m.id } })
+          : prisma.trackerMark.update({
+              where: { id: m.id },
+              data: { value: remap[m.value]! },
+            }),
+      ),
+    )
+  }
   // days answered with something it no longer has (an answer taken out, a
   // number past the scale's new ends) are cleared
   const kind = change.kind

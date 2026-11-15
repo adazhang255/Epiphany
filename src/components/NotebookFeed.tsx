@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import {
   HighlightMenu,
@@ -53,7 +54,10 @@ import { SaveCancel } from "@/components/SaveCancel"
 import { DraftTabs } from "@/components/DraftTabs"
 import { FormatBar, formatKeyDown } from "@/components/FormatBar"
 import { FormattedText, LiveFormatted } from "@/components/Formatted"
-import { formatFlags } from "@/features/notes/lib/markdown"
+import { formatFlags, plainText } from "@/features/notes/lib/markdown"
+import { dayKey } from "@/features/notes/lib/time"
+import { trackerAnswer } from "@/features/trackers/legend"
+import type { TrackerView } from "@/features/trackers/trackers"
 import {
   loadDraft,
   newEntryDraftKey,
@@ -99,10 +103,13 @@ function Page({
   note,
   sorting,
   custom,
+  trackers,
   onDeleted,
   onRestored,
 }: {
   note: NotebookNote
+  // your trackers: that day's answers sit at the foot of the page
+  trackers: TrackerView[]
   // it should leave the list (deleted, or given a category while sorting)
   onDeleted: () => void
   // its delete was undone: back in the list
@@ -139,6 +146,12 @@ function Page({
     // in the Uncategorized view, a sorted entry leaves the list
     if (sorting && next.length > 0) onDeleted()
   }
+  // the day's tracker answers (the day it's dated, in your time zone)
+  const day = dayKey(new Date(note.date))
+  const answered = trackers.flatMap((t) => {
+    const a = trackerAnswer(t, t.marks[day])
+    return a ? [{ tracker: t, answer: a }] : []
+  })
   const s = seed(note.id)
   const tilt = ((s % 13) - 6) / 10 // -0.6° … 0.6°
 
@@ -189,6 +202,7 @@ function Page({
           style={{ top: `${at * 100}%` }}
         />
       ))}
+      <IndexTabs purposes={purposes} sentiment={note.sentiment} />
 
       <>
         {/* title with its category beside it, on exactly one ruled line;
@@ -250,9 +264,32 @@ function Page({
               )}
             </div>
           )}
-          <div className="flex min-h-[30px] items-center gap-3">
-            <div className="min-w-0 flex-1" />
-            <span className="shrink-0 font-mono text-[11px] text-stone-500">
+          <div className="flex flex-wrap items-center gap-x-3">
+            {/* that day's trackers: a square and its answer each (on a
+                narrow page, a line of their own) */}
+            <ul
+              aria-label="That day's trackers"
+              className={`h-[30px] min-w-0 basis-full items-center gap-x-3 overflow-hidden whitespace-nowrap font-mono text-[11px] text-stone-400 sm:flex-1 sm:basis-0 ${answered.length ? "flex" : "hidden sm:flex"}`}
+            >
+              {answered.map(({ tracker, answer }) => (
+                <li key={tracker.id} className="min-w-0 shrink">
+                  <Link
+                    href={`/trackers?show=${encodeURIComponent(tracker.id)}`}
+                    title={`${tracker.name}: ${answer.label}`}
+                    className="flex min-w-0 items-center gap-1.5 hover:text-stone-200"
+                  >
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                      style={{ background: answer.color }}
+                    />
+                    <span className="sr-only">{tracker.name}: </span>
+                    <span className="truncate">{answer.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <span className="ml-auto shrink-0 font-mono text-[11px] text-stone-500">
               <span className="sm:hidden">
                 {new Date(note.date).toLocaleDateString("en-US", {
                   month: "short",
@@ -381,6 +418,8 @@ function BlankPage({
   const draftKey = newEntryDraftKey(draftId)
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(todayIso)
+  // "HH:MM", or "" for none given (then the time it's saved is shown)
+  const [time, setTime] = useState("")
   const [content, setContent] = useState("")
   const [categories, setCategories] = useState<string[]>([])
   const [tone, setTone] = useState<number | null>(null)
@@ -410,6 +449,7 @@ function BlankPage({
     if (d) {
       setTitle(d.title ?? "")
       setDate(d.date || todayIso())
+      setTime(d.time ?? "")
       setContent(d.content ?? "")
       setCategories(d.categories ?? [])
       setTone(d.tone ?? null)
@@ -427,16 +467,25 @@ function BlankPage({
   const draft = useMemo<NewEntryDraft | null>(
     () =>
       title.trim() || content.trim()
-        ? { title, date, content, categories, tone, marks, ranges }
+        ? { title, date, time, content, categories, tone, marks, ranges }
         : null,
-    [title, date, content, categories, tone, marks, ranges],
+    [title, date, time, content, categories, tone, marks, ranges],
   )
   const clearDraft = useDraftAutosave(draftKey, draft, ready)
   useUnsavedWarning(draft !== null && !saving)
 
   // gone at once; "Undo" brings it all back
   function discard() {
-    const was = { title, date, content, categories, tone, marks, ranges }
+    const was = {
+      title,
+      date,
+      time,
+      content,
+      categories,
+      tone,
+      marks,
+      ranges,
+    }
     clearDraft()
     reset()
     showUndo({
@@ -444,6 +493,7 @@ function BlankPage({
       onUndo: () => {
         setTitle(was.title)
         setDate(was.date)
+        setTime(was.time)
         setContent(was.content)
         setCategories(was.categories)
         setTone(was.tone)
@@ -525,6 +575,7 @@ function BlankPage({
     setTitle("")
     setContent("")
     setDate(todayIso())
+    setTime("")
     setCategories([])
     setTone(null)
     setMarks([])
@@ -547,6 +598,7 @@ function BlankPage({
         title: title.trim(),
         content,
         date,
+        time,
         ownCategory: categories,
         sentiment: tone,
       }),
@@ -614,27 +666,38 @@ function BlankPage({
           style={{ top: `${at * 100}%` }}
         />
       ))}
-      <header className="flex h-[30px] items-center gap-3">
+      {/* on a narrow page it wraps, a ruled line per row */}
+      <header className="flex flex-wrap items-center gap-x-3">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="A new page…"
           aria-label="Title"
-          className="min-w-0 flex-1 bg-transparent text-[22px] leading-[30px] text-ink outline-none placeholder:text-stone-600"
+          className="h-[30px] min-w-0 flex-1 basis-40 bg-transparent text-[22px] leading-[30px] text-ink outline-none placeholder:text-stone-600"
         />
         <FormatBar
           box={box}
           preview={preview}
           onPreview={setPreview}
-          className="shrink-0"
+          className="h-[30px] shrink-0"
         />
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          aria-label="Date"
-          className="shrink-0 bg-transparent font-mono text-[11px] uppercase leading-none tracking-widest text-stone-500 outline-none [color-scheme:dark]"
-        />
+        <div className="ml-auto flex h-[30px] shrink-0 items-center gap-3">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            aria-label="Date"
+            className="shrink-0 bg-transparent font-mono text-[11px] uppercase leading-none tracking-widest text-stone-500 outline-none [color-scheme:dark]"
+          />
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            aria-label="Time (optional)"
+            title="Time (optional): left blank, it's the time you save"
+            className="shrink-0 bg-transparent font-mono text-[11px] uppercase leading-none tracking-widest text-stone-500 outline-none [color-scheme:dark]"
+          />
+        </div>
       </header>
 
       {preview && (
@@ -766,6 +829,110 @@ function BlankPage({
   )
 }
 
+// Index tabs down the page's right edge, like ones stuck to a real
+// notebook's pages: one per category, then its tone. (Hover for which.)
+function IndexTabs({
+  purposes,
+  sentiment,
+}: {
+  purposes: string[]
+  sentiment: number | null
+}) {
+  const tabs = [
+    ...purposes.slice(0, 3).map((c) => ({
+      key: c,
+      label: c,
+      color: categoryColor(c),
+    })),
+    ...(sentiment !== null && SENTIMENT_LABELS[sentiment]
+      ? [
+          {
+            key: "tone",
+            label: `Tone: ${SENTIMENT_LABELS[sentiment]}`,
+            color: SENTIMENT_COLORS[sentiment],
+          },
+        ]
+      : []),
+  ]
+  if (!tabs.length) return null
+  return (
+    <ul
+      aria-label="Index tabs"
+      className="absolute left-full top-10 flex flex-col gap-1.5"
+    >
+      {tabs.map((t) => (
+        <li
+          key={t.key}
+          title={t.label}
+          className="h-9 w-2 rounded-r-[3px] shadow-[2px_2px_4px_rgb(0_0_0/0.4)] sm:h-11 sm:w-3"
+          style={{ background: t.color }}
+        >
+          <span className="sr-only">{t.label}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// today's date, read in the browser (the server's day may not be yours)
+const noChange = () => () => {}
+const todayKey = () => dayKey(new Date())
+
+// Pages written on this day in other years, tucked in above the notebook:
+// the latest few, each as a small slip of the same paper.
+function YearsAgo({ notes }: { notes: NotebookNote[] }) {
+  const today = useSyncExternalStore(noChange, todayKey, () => null)
+  if (!today) return null
+  const year = Number(today.slice(0, 4))
+  const found = notes
+    .map((n) => ({ note: n, key: dayKey(new Date(n.date)) }))
+    .filter(({ key }) => key.slice(5) === today.slice(5) && key < today)
+    .slice(0, 3)
+  if (!found.length) return null
+  return (
+    <section aria-label="On this day" className="mb-12">
+      <div className="grid gap-6 sm:grid-cols-2">
+        {found.map(({ note, key }, i) => {
+          const ago = year - Number(key.slice(0, 4))
+          return (
+            <Link
+              key={note.id}
+              href={`/notes/${note.id}`}
+              className="notebook notebook-page relative block rounded-sm pb-2 pr-5 font-serif text-[16px] text-stone-300 transition hover:ring-1 hover:ring-ember/60"
+              style={{
+                backgroundColor: PAPERS[seed(note.id) % PAPERS.length],
+                transform: `rotate(${i % 2 ? 1.2 : -1.4}deg)`,
+              }}
+            >
+              {/* a strip of tape holding it in */}
+              <span
+                aria-hidden
+                className="absolute -top-2.5 left-1/2 h-5 w-20 -translate-x-1/2 -rotate-3 rounded-[2px] bg-[rgb(255_244_214/0.12)] shadow-[0_1px_2px_rgb(0_0_0/0.3)]"
+              />
+              <p className="flex h-[30px] items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-widest">
+                <span className="text-ember">
+                  {ago === 1 ? "1 year" : `${ago} years`} ago today
+                </span>
+                <span className="text-stone-500">{key.slice(0, 4)}</span>
+              </p>
+              {note.title && (
+                <p className="truncate text-[19px] text-ink">{note.title}</p>
+              )}
+              <p className="line-clamp-3">{plainText(note.content)}</p>
+            </Link>
+          )
+        })}
+      </div>
+      <Link
+        href="/on-this-day"
+        className="mt-4 inline-block font-mono text-[11px] uppercase tracking-widest text-stone-500 hover:text-stone-300"
+      >
+        All of this day →
+      </Link>
+    </section>
+  )
+}
+
 // Endless scroll: the next pages load as you near the bottom.
 // pages added each time you reach the bottom
 const PAGE = 6
@@ -776,9 +943,12 @@ export function NotebookFeed({
   custom = [],
   category,
   q,
+  trackers = [],
 }: {
   // the entries to show (already filtered and searched), in order
   notes: NotebookNote[]
+  // your trackers, for each day's answers at the foot of its pages
+  trackers?: TrackerView[]
   filter: NotebookFilter
   category?: string
   q?: string
@@ -863,6 +1033,7 @@ export function NotebookFeed({
   return (
     <div>
       {blank && <div className="mb-12">{blank}</div>}
+      {writable && <YearsAgo notes={notes} />}
       <ol className="space-y-12">
         {notes.slice(0, count).map((note) => (
           <li key={note.id}>
@@ -870,6 +1041,7 @@ export function NotebookFeed({
               note={note}
               sorting={filter === "uncategorized"}
               custom={custom}
+              trackers={trackers}
               onDeleted={() => setGone((g) => new Set(g).add(note.id))}
               onRestored={() =>
                 setGone((g) => {

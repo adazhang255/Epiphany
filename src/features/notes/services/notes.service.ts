@@ -1,5 +1,6 @@
 import { offerUndo } from "@/features/undo/undo"
 import { prisma } from "@/lib/prisma"
+import { PUBLIC_SITE } from "@/lib/site-mode"
 import { searchTopic } from "@/features/search/topic"
 import { dayKey } from "@/features/notes/lib/time"
 import {
@@ -330,6 +331,7 @@ export type NotebookNote = {
   autoTags: string
   createdAt: string // ISO: when it was saved, for its time of day
   purposes: string[] // its category, from its highlights
+  sentiment: number | null // its tone, -2 to 2 (never on the public site)
   // its highlights, to tint in the text
   highlights: { id: string; quote: string; category: string }[]
 }
@@ -353,6 +355,7 @@ async function loadNotebook() {
       autoTags: true,
       createdAt: true,
       ownCategory: true,
+      sentiment: true,
       quotes: {
         select: { id: true, quote: true, category: true },
         orderBy: { createdAt: "asc" },
@@ -371,6 +374,7 @@ async function loadNotebook() {
     ...n,
     date: n.date.toISOString(),
     createdAt: n.createdAt.toISOString(),
+    sentiment: PUBLIC_SITE ? null : n.sentiment,
     purposes: entryCategories(
       n.ownCategory,
       quotes.map((q) => q.category),

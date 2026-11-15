@@ -17,6 +17,10 @@ import {
   DEFAULT_SCALE,
   formatScale,
   scaleColor,
+  scaleEnds,
+  trackerAnswer,
+  scaleGradient,
+  SCALE_STYLES,
   scaleValue,
   type Scale,
   colorHue,
@@ -26,9 +30,14 @@ import {
   SLIDER_MAX,
   PALETTE,
   type LegendItem,
+  groupOf,
+  groupScale,
+  stepCount,
+  type ScaleGroup,
 } from "@/features/trackers/legend"
 import type { TrackerView } from "@/features/trackers/trackers"
 import { DayHeatmap, type HeatmapDay } from "@/components/DayHeatmap"
+import { tint } from "@/features/notes/lib/ranges"
 
 // Trackers, on their own Stats tab: day-by-day questions you answer yourself
 // ("How am I feeling?"), apart from your entries. Each is a grid of days like the tone
@@ -87,6 +96,32 @@ async function send(url: string, method: string, body?: unknown) {
 
 // ---- making or changing a tracker ------------------------------------------
 
+// beside an answer made from a scale: the numbers it stands for, and how
+// many days answered so far fall in them
+function GroupDays({
+  group,
+  scale,
+  answered,
+}: {
+  group?: ScaleGroup
+  scale: Scale
+  answered: string[]
+}) {
+  if (!group) return null
+  const days = answered.filter((v) => {
+    const n = scaleValue(scale, v)
+    return n !== null && groupOf([group], n) === group
+  }).length
+  return (
+    <span className="hidden shrink-0 text-xs text-stone-500 sm:inline">
+      {group.from === group.to
+        ? formatScale(scale, group.from)
+        : `${formatScale({ ...scale, unit: "" }, group.from)} to ${group.closed ? "" : "under "}${formatScale(scale, group.to)}`}{" "}
+      · {days} {days === 1 ? "day" : "days"}
+    </span>
+  )
+}
+
 function TrackerForm({
   initial,
   onDone,
@@ -98,6 +133,8 @@ function TrackerForm({
     name: string
     legend: LegendItem[]
     scale: Scale | null
+    // days carried over to new answers (answers became a scale, or back)
+    remap?: Record<string, string | null>
   }) => void
   onCancel: () => void
 }) {
@@ -115,6 +152,11 @@ function TrackerForm({
       step: s.step ? String(s.step) : "",
     }
   })
+  // Answers becoming a scale: the number each answer's days get (blank
+  // clears them). A scale becoming answers: the stretch of it each answer
+  // stands for.
+  const [numbers, setNumbers] = useState<Record<string, string>>({})
+  const [groups, setGroups] = useState<ScaleGroup[]>([])
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -158,6 +200,60 @@ function TrackerForm({
   const changeScale = (patch: Partial<Scale>) =>
     setScale((s) => (s ? { ...s, ...patch } : s))
 
+  // switching how it's answered: a new tracker just changes; one with days
+  // answered gets them carried over (and switching back puts it as it was)
+  function switchTo(toScale: boolean) {
+    setError("")
+    if (!initial || Boolean(initial.scale) === toScale) {
+      setScale(toScale ? (initial?.scale ?? scale ?? DEFAULT_SCALE) : null)
+      if (initial && !toScale) setLegend(initial.legend)
+      return
+    }
+    if (toScale) {
+      // its answers, in order, as 1, 2, 3…; its ends named after the first
+      // and last answers
+      const l = initial.legend
+      setNumbers(Object.fromEntries(l.map((x, i) => [x.key, String(i + 1)])))
+      setTyped({ min: "1", max: String(Math.max(2, l.length)), step: "1" })
+      setScale({
+        ...DEFAULT_SCALE,
+        min: 1,
+        max: Math.max(2, l.length),
+        step: 1,
+        low: { ...DEFAULT_SCALE.low, label: l[0]?.label ?? "" },
+        high: { ...DEFAULT_SCALE.high, label: l[l.length - 1]?.label ?? "" },
+      })
+    } else regroup(stepCount(initial.scale!) ?? 3)
+  }
+  function regroup(count: number) {
+    const g = groupScale(initial!.scale!, count)
+    setGroups(g)
+    setLegend(g.map(({ key, label, color }) => ({ key, label, color })))
+    setScale(null)
+  }
+  // changing an answered tracker from answers to a scale, or back
+  const converting = Boolean(initial) && Boolean(initial?.scale) !== !!scale
+  const answered = initial ? Object.values(initial.marks) : []
+  // what each day's answer becomes ({ old: new }; null: cleared)
+  function remapFor(legendNow: LegendItem[]) {
+    if (!initial || !converting) return undefined
+    const out: Record<string, string | null> = {}
+    for (const v of new Set(answered)) {
+      if (scaleNow) {
+        const typed = numbers[v]?.trim()
+        const n = typed ? scaleValue(scaleNow, typed) : null
+        out[v] = n === null ? null : String(n)
+      } else {
+        const n = scaleValue(initial.scale!, v)
+        const g = n === null ? undefined : groupOf(groups, n)
+        out[v] = g && legendNow.some((l) => l.key === g.key) ? g.key : null
+      }
+    }
+    return out
+  }
+  const remap = remapFor(cleanLegend(legend))
+  const carried = remap ? answered.filter((v) => remap[v]).length : 0
+
   async function save() {
     if (!name.trim()) return setError("Write the question first.")
     if (scale && !scaleNow)
@@ -166,10 +262,15 @@ function TrackerForm({
     if (!scale && clean.length < 2)
       return setError("Give it at least two answers.")
     const kind = scaleNow ? { scale: scaleNow } : { legend: clean }
+    const remap = remapFor(clean)
     setSaving(true)
     setError("")
     const { ok, data } = initial
-      ? await send(`/api/trackers/${initial.id}`, "PATCH", { name, ...kind })
+      ? await send(`/api/trackers/${initial.id}`, "PATCH", {
+          name,
+          ...kind,
+          remap,
+        })
       : await send("/api/trackers", "POST", { name, ...kind })
     setSaving(false)
     if (!ok) return setError(data?.error ?? "Couldn't save it.")
@@ -178,16 +279,17 @@ function TrackerForm({
       name: name.trim(),
       legend: scaleNow ? [] : clean,
       scale: scaleNow,
+      remap,
     })
   }
 
   const removed =
-    initial && !scale
+    initial && !scale && !converting
       ? initial.legend.filter((l) => !legend.some((x) => x.key === l.key))
       : []
   // days answered past a scale's new ends
   const outside =
-    initial?.scale && scaleNow
+    initial?.scale && scaleNow && !converting
       ? Object.values(initial.marks).filter(
           (v) => scaleValue(scaleNow, v) === null,
         ).length
@@ -249,37 +351,33 @@ function TrackerForm({
       </div>
 
       {/* answered by picking one of set answers, or with a number on a
-          scale (chosen when it's made) */}
-      {!initial && (
-        <div
-          role="radiogroup"
-          aria-label="How it's answered"
-          className="mt-3 inline-flex rounded-full border border-white/10 p-1 text-sm"
-        >
-          {(
-            [
-              ["answers", "Answers"],
-              ["scale", "Number scale"],
-            ] as const
-          ).map(([kind, label]) => {
-            const on = (kind === "scale") === Boolean(scale)
-            return (
-              <button
-                key={kind}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() =>
-                  setScale(kind === "scale" ? (scale ?? DEFAULT_SCALE) : null)
-                }
-                className={`rounded-full px-3 py-1 transition ${on ? "bg-white/10 text-ink" : "text-stone-400 hover:text-stone-200"}`}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
-      )}
+          scale (an answered one can switch: its days carry over) */}
+      <div
+        role="radiogroup"
+        aria-label="How it's answered"
+        className="mt-3 inline-flex rounded-full border border-white/10 p-1 text-sm"
+      >
+        {(
+          [
+            ["answers", "Answers"],
+            ["scale", "Number scale"],
+          ] as const
+        ).map(([kind, label]) => {
+          const on = (kind === "scale") === Boolean(scale)
+          return (
+            <button
+              key={kind}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => !on && switchTo(kind === "scale")}
+              className={`rounded-full px-3 py-1 transition ${on ? "bg-white/10 text-ink" : "text-stone-400 hover:text-stone-200"}`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
 
       {scale && (
         <div className="mt-4 space-y-3">
@@ -320,8 +418,35 @@ function TrackerForm({
               />
             </label>
           </div>
-          {(["low", "high"] as const).map((which) => {
+          {/* its colours: one at each end, or one colour in shades */}
+          <div
+            role="radiogroup"
+            aria-label="Its colours"
+            className="flex flex-wrap items-center gap-2 text-sm text-stone-400"
+          >
+            Colours
+            <div className="inline-flex rounded-full border border-white/10 p-0.5">
+              {SCALE_STYLES.map(([style, label]) => {
+                const on = scale.style === style
+                return (
+                  <button
+                    key={style}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => changeScale({ style })}
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition ${on ? "bg-white/10 text-ink" : "hover:text-stone-200"}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {(["low", "high"] as const).map((which, i) => {
             const e = scale[which]
+            // one colour: picked at the high end, the low end follows it
+            const own = scale.style === "blend" || which === "high"
             return (
               <div key={which} className="flex items-center gap-2">
                 <span className="w-12 shrink-0 text-right font-mono text-[11px] text-stone-500">
@@ -330,10 +455,18 @@ function TrackerForm({
                 <span
                   aria-hidden
                   className="h-6 w-6 shrink-0 rounded-md border border-white/20"
-                  style={{ background: e.color }}
+                  style={{ background: scaleEnds(scale)[i] }}
                 />
-                {hueSlider(e.color, `Colour for the ${which} end`, (color) =>
-                  changeScale({ [which]: { ...e, color } }),
+                {own ? (
+                  hueSlider(
+                    e.color,
+                    scale.style === "blend"
+                      ? `Colour for the ${which} end`
+                      : "Colour",
+                    (color) => changeScale({ [which]: { ...e, color } }),
+                  )
+                ) : (
+                  <span aria-hidden className="w-24 shrink-0 sm:w-32" />
                 )}
                 <input
                   value={e.label}
@@ -351,9 +484,7 @@ function TrackerForm({
           <div
             aria-hidden
             className="ml-14 h-2.5 rounded-full"
-            style={{
-              background: `linear-gradient(to right, ${scale.low.color}, ${scale.high.color})`,
-            }}
+            style={{ background: scaleGradient(scale) }}
           />
           {outside > 0 && (
             <p className="text-xs text-amber-200/80">
@@ -363,6 +494,91 @@ function TrackerForm({
               you save.
             </p>
           )}
+          {converting && (
+            // the answers it had, each now a number
+            <div className="rounded-xl border border-white/10 p-3">
+              <p className="text-sm text-stone-300">
+                Days you&apos;ve answered become numbers
+              </p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Leave one blank to clear its days.
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {initial!.legend.map((l) => {
+                  const typed = numbers[l.key] ?? ""
+                  const bad =
+                    typed.trim() !== "" &&
+                    (!scaleNow || scaleValue(scaleNow, typed) === null)
+                  const days = answered.filter((v) => v === l.key).length
+                  return (
+                    <li key={l.key} className="flex items-center gap-2 text-sm">
+                      <span
+                        aria-hidden
+                        className="h-3 w-3 shrink-0 rounded-sm"
+                        style={{ background: l.color }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-stone-200">
+                        {l.label}{" "}
+                        <span className="text-xs text-stone-500">
+                          {days} {days === 1 ? "day" : "days"}
+                        </span>
+                      </span>
+                      <span aria-hidden className="text-stone-600">
+                        →
+                      </span>
+                      <input
+                        inputMode="decimal"
+                        value={typed}
+                        onChange={(e) =>
+                          setNumbers((n) => ({ ...n, [l.key]: e.target.value }))
+                        }
+                        placeholder="clear"
+                        aria-label={`Number for “${l.label}”`}
+                        aria-invalid={bad}
+                        className={`${numberBox} ${bad ? "border-rose-400/60" : ""}`}
+                      />
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {converting && !scale && (
+        // the scale's numbers, grouped into answers
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-stone-400">
+          <span>Days you&apos;ve answered go into</span>
+          <div className="inline-flex rounded-full border border-white/10 p-0.5">
+            {[
+              ...(stepCount(initial!.scale!)
+                ? [stepCount(initial!.scale!)!]
+                : []),
+              2,
+              3,
+              4,
+              5,
+            ]
+              .filter((n, i, all) => all.indexOf(n) === i)
+              .map((n) => {
+                const on = groups.length === n
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => regroup(n)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition ${on ? "bg-white/10 text-ink" : "hover:text-stone-200"}`}
+                  >
+                    {n === stepCount(initial!.scale!)
+                      ? `each number (${n})`
+                      : n}
+                  </button>
+                )
+              })}
+          </div>
+          <span>answers. Rename them as you like.</span>
         </div>
       )}
 
@@ -398,6 +614,13 @@ function TrackerForm({
                 maxLength={40}
                 className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-stone-100 outline-none focus:border-white/30"
               />
+              {converting && (
+                <GroupDays
+                  group={groups.find((g) => g.key === item.key)}
+                  scale={initial!.scale!}
+                  answered={answered}
+                />
+              )}
               <button
                 type="button"
                 onClick={() => move(i, -1)}
@@ -447,6 +670,13 @@ function TrackerForm({
         </button>
       )}
 
+      {converting && answered.length > 0 && (
+        <p className="mt-3 text-xs text-stone-400">
+          {carried === answered.length
+            ? `All ${answered.length} answered days carry over.`
+            : `${carried} of ${answered.length} answered days carry over; the other ${answered.length - carried} will be cleared.`}
+        </p>
+      )}
       {removed.length > 0 && (
         <p className="mt-3 text-xs text-amber-200/80">
           Days marked {removed.map((r) => `“${r.label}”`).join(", ")} will be
@@ -615,20 +845,10 @@ export function TrackerCard({
 }) {
   const marks = tracker.marks
   const scale = tracker.scale
-  const legendOf = new Map(tracker.legend.map((l) => [l.key, l]))
   // a day's answer: its number on a scale, or which of the answers
   const numberOf = (v: string | undefined) =>
     scale && v !== undefined ? scaleValue(scale, v) : null
-  const answerOf = (v: string | undefined) => {
-    if (!scale) {
-      const l = legendOf.get(v ?? "")
-      return l ? { key: l.key, label: l.label, color: l.color } : null
-    }
-    const n = numberOf(v)
-    return n === null
-      ? null
-      : { key: null, label: formatScale(scale, n), color: scaleColor(scale, n) }
-  }
+  const answerOf = (v: string | undefined) => trackerAnswer(tracker, v)
   const thisYear = Number(today.slice(0, 4))
   const years = useMemo(() => {
     const first = Math.min(
@@ -639,6 +859,16 @@ export function TrackerCard({
   }, [marks, thisYear])
   const [year, setYear] = useState(thisYear)
   const weeks = useMemo(() => buildYear(year), [year])
+  // a grid wider than the card opens on today, not January
+  const gridBox = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const box = gridBox.current
+    const cell = box?.querySelector<HTMLElement>("[data-today]")
+    if (!box) return
+    box.scrollLeft = cell
+      ? Math.max(0, cell.offsetLeft - box.clientWidth + 4 * (CELL + GAP))
+      : 0
+  }, [year])
   const [open, setOpen] = useState<string | null>(null) // the day being marked
   // an answer picked in the legend: only its days stay lit
   const [focus, setFocus] = useState<string | null>(null)
@@ -681,6 +911,20 @@ export function TrackerCard({
   const inYear = Object.entries(marks).filter(([d]) => d.startsWith(`${year}-`))
   const counts = new Map<string, number>()
   for (const [, v] of inYear) counts.set(v, (counts.get(v) ?? 0) + 1)
+  // the answer given most this year (set answers)
+  const mostOften = scale
+    ? null
+    : tracker.legend.reduce<LegendItem | null>(
+        (best, l) =>
+          (counts.get(l.key) ?? 0) > (best ? (counts.get(best.key) ?? 0) : 0)
+            ? l
+            : best,
+        null,
+      )
+  const answeredInYear = tracker.legend.reduce(
+    (n, l) => n + (counts.get(l.key) ?? 0),
+    0,
+  )
   const numbers = inYear
     .map(([, v]) => numberOf(v))
     .filter((n): n is number => n !== null)
@@ -704,10 +948,15 @@ export function TrackerCard({
             onClick={() => mark(day, on ? null : l.key)}
             className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition pointer-coarse:py-2.5 ${
               on
-                ? "bg-white/10 font-medium text-ink"
+                ? "font-medium text-ink"
                 : "border-white/15 text-stone-300 hover:border-white/30 hover:bg-white/5"
             }`}
-            style={on ? { borderColor: l.color } : undefined}
+            // picked: filled with its colour
+            style={
+              on
+                ? { borderColor: l.color, background: tint(l.color, 0.22) }
+                : undefined
+            }
           >
             <span
               aria-hidden
@@ -809,6 +1058,15 @@ export function TrackerCard({
             {year}
             {scale && average !== null && (
               <> · on average {formatScale(scale, average)}</>
+            )}
+            {mostOften && (
+              <>
+                {" "}
+                · most often{" "}
+                <span style={{ color: mostOften.color }}>
+                  {mostOften.label}
+                </span>
+              </>
             )}
             .
           </p>
@@ -918,7 +1176,7 @@ export function TrackerCard({
       {/* the grid, with (in the slideshow) an arrow each side */}
       <div className="mt-4 flex items-center gap-2 sm:gap-4">
         {nav?.prev}
-        <div className="relative min-w-0 overflow-x-auto pb-1">
+        <div ref={gridBox} className="relative min-w-0 overflow-x-auto pb-1">
           <div className="inline-flex gap-2">
             <div
               aria-hidden
@@ -973,6 +1231,7 @@ export function TrackerCard({
                             if (scale && !again) typeIn("")
                             else setTyping(undefined)
                           }}
+                          data-today={k === today || undefined}
                           aria-label={`${niceDay(k)}: ${answer?.label ?? "not answered"}`}
                           title={`${niceDay(k)}${answer ? ` · ${answer.label}` : ""}`}
                           className={`block rounded-[3px] transition ${
@@ -1016,7 +1275,7 @@ export function TrackerCard({
             aria-hidden
             className="h-2 w-24 rounded-full sm:w-40"
             style={{
-              background: `linear-gradient(to right, ${scale.low.color}, ${scale.high.color})`,
+              background: scaleGradient(scale),
             }}
           />
           <span>
@@ -1026,6 +1285,37 @@ export function TrackerCard({
         </div>
       ) : (
         <>
+          {/* how the year's days split between the answers: pick a part to
+              light only its days */}
+          {answeredInYear > 0 && (
+            <div
+              role="group"
+              aria-label={`How ${year}'s answers split`}
+              className="mt-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+            >
+              {tracker.legend.map((l) => {
+                const n = counts.get(l.key) ?? 0
+                if (!n) return null
+                const share = Math.round((n / answeredInYear) * 100)
+                return (
+                  <button
+                    key={l.key}
+                    type="button"
+                    aria-pressed={focus === l.key}
+                    onClick={() => setFocus(focus === l.key ? null : l.key)}
+                    aria-label={`${l.label}: ${n} ${n === 1 ? "day" : "days"}, ${share}%`}
+                    title={`${l.label} · ${n} ${n === 1 ? "day" : "days"} (${share}%)`}
+                    className="h-full transition-opacity hover:opacity-80"
+                    style={{
+                      flexGrow: n,
+                      background: l.color,
+                      opacity: focus && focus !== l.key ? 0.2 : 1,
+                    }}
+                  />
+                )
+              })}
+            </div>
+          )}
           {/* the key, under the grid: pick an answer to light only its days */}
           <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1">
             <span className="mr-1 font-mono text-[10px] uppercase tracking-widest text-stone-600">
@@ -1446,6 +1736,29 @@ export function Trackers({
   }
   const arrows = slideArrows({ index, count, name, go })
 
+  // delete a tracker (from its slide, or the list), with an undo that puts
+  // it back where it was
+  async function remove(t: TrackerView) {
+    const { ok, data } = await send(`/api/trackers/${t.id}`, "DELETE")
+    if (!ok) return
+    const at = list.findIndex((x) => x.id === t.id)
+    set((all) => all.filter((x) => x.id !== t.id))
+    // its slide was showing: to the one before it
+    if (t.id === tracker?.id) choose(slides[index - 1] ?? WRITING)
+    showUndo({
+      label: `Deleted “${t.name}”`,
+      token: data?.undo,
+      onUndo: () => {
+        set((all) =>
+          all.some((x) => x.id === t.id)
+            ? all
+            : [...all.slice(0, at), t, ...all.slice(at)],
+        )
+        choose(t.id)
+      },
+    })
+  }
+
   return (
     <section aria-labelledby="trackers-title" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -1520,7 +1833,7 @@ export function Trackers({
           key={tracker.id}
           initial={tracker}
           onCancel={() => setForm(null)}
-          onDone={(changed) => {
+          onDone={({ remap, ...changed }) => {
             const keys = new Set(changed.legend.map((l) => l.key))
             // days whose answer it still has (an answer, or a number on
             // the scale)
@@ -1535,7 +1848,16 @@ export function Trackers({
                       ...x,
                       ...changed,
                       marks: Object.fromEntries(
-                        Object.entries(x.marks).filter(([, v]) => fits(v)),
+                        Object.entries(x.marks)
+                          // carried over to its new answers first
+                          .map(([d, v]) => [
+                            d,
+                            remap && Object.hasOwn(remap, v) ? remap[v] : v,
+                          ])
+                          .filter(
+                            (e): e is [string, string] =>
+                              e[1] !== null && fits(e[1]),
+                          ),
                       ),
                     }
                   : x,
@@ -1553,32 +1875,16 @@ export function Trackers({
           onAddAnswer={(label) => actions.addAnswer(tracker, label)}
           onEdit={() => setForm(tracker.id)}
           nav={arrows}
-          onDelete={async () => {
-            const { ok, data } = await send(
-              `/api/trackers/${tracker.id}`,
-              "DELETE",
-            )
-            if (!ok) return
-            set((all) => all.filter((x) => x.id !== tracker.id))
-            choose(slides[index - 1] ?? WRITING)
-            showUndo({
-              label: `Deleted “${tracker.name}”`,
-              token: data?.undo,
-              // back in the slideshow, where it was
-              onUndo: () => {
-                set((all) =>
-                  all.some((x) => x.id === tracker.id)
-                    ? all
-                    : [
-                        ...all.slice(0, index - 1),
-                        tracker,
-                        ...all.slice(index - 1),
-                      ],
-                )
-                choose(tracker.id)
-              },
-            })
-          }}
+          onDelete={() => remove(tracker)}
+        />
+      )}
+
+      {list.length > 0 && form === null && (
+        <TrackerList
+          trackers={list}
+          current={tracker?.id}
+          onOpen={choose}
+          onDelete={remove}
         />
       )}
 
@@ -1600,5 +1906,84 @@ export function Trackers({
         )
       )}
     </section>
+  )
+}
+
+// All your trackers at a glance, under the slideshow: open one, or delete
+// it (after a second tap, saying how many days go with it).
+function TrackerList({
+  trackers,
+  current,
+  onOpen,
+  onDelete,
+}: {
+  trackers: TrackerView[]
+  current?: string
+  onOpen: (id: string) => void
+  onDelete: (t: TrackerView) => void
+}) {
+  const [asking, setAsking] = useState<string | null>(null)
+  return (
+    <div className="pt-2">
+      <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
+        Your trackers
+      </h3>
+      <ul className="mt-2 divide-y divide-white/[0.06] rounded-xl border border-white/[0.07]">
+        {trackers.map((t) => {
+          const days = Object.keys(t.marks).length
+          return (
+            <li
+              key={t.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm"
+            >
+              <button
+                type="button"
+                onClick={() => onOpen(t.id)}
+                aria-current={t.id === current ? "true" : undefined}
+                className={`min-w-0 truncate text-left hover:text-ink ${t.id === current ? "text-ink" : "text-stone-300"}`}
+              >
+                {t.name}
+              </button>
+              <span className="text-xs text-stone-500">
+                {days} {days === 1 ? "day" : "days"}
+              </span>
+              {asking === t.id ? (
+                <span className="ml-auto flex items-center gap-2 text-xs">
+                  <span className="text-rose-200">
+                    Delete it{days ? ` and its ${days} days` : ""}?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAsking(null)
+                      onDelete(t)
+                    }}
+                    className="rounded bg-rose-400 px-2 py-0.5 font-bold text-stone-950"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAsking(null)}
+                    className="text-stone-400"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAsking(t.id)}
+                  aria-label={`Delete ${t.name}`}
+                  className="ml-auto text-xs text-stone-500 underline hover:text-rose-300 pointer-coarse:py-1"
+                >
+                  Delete
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }

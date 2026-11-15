@@ -111,9 +111,17 @@ export function colorHue(color: string) {
 
 // ---- a scale: any number in a range, instead of set answers ---------------
 // ("How many hours did I sleep?" 0–12, "How was today?" 1–10). Each end has
-// a label and a colour; a day's colour is part way between them.
+// a label and a colour; a day's colour is part way between them. Or the
+// colours are all one colour (the high end's), from faint to full or from
+// light to dark.
 
 export type ScaleEnd = { label: string; color: string }
+export type ScaleStyle = "blend" | "fade" | "shade"
+export const SCALE_STYLES: [ScaleStyle, string][] = [
+  ["blend", "Two colours"],
+  ["fade", "Faint to full"],
+  ["shade", "Light to dark"],
+]
 export type Scale = {
   min: number
   max: number
@@ -121,6 +129,7 @@ export type Scale = {
   unit: string
   low: ScaleEnd
   high: ScaleEnd
+  style: ScaleStyle
 }
 
 export const DEFAULT_SCALE: Scale = {
@@ -130,6 +139,7 @@ export const DEFAULT_SCALE: Scale = {
   unit: "",
   low: { label: "Low", color: SCALE_COLORS[0] },
   high: { label: "High", color: SCALE_COLORS[4] },
+  style: "blend",
 }
 
 const finite = (v: unknown, fallback: number) => {
@@ -168,6 +178,9 @@ export function cleanScale(raw: unknown): Scale | null {
       .slice(0, 20),
     low: end(r.low, DEFAULT_SCALE.low),
     high: end(r.high, DEFAULT_SCALE.high),
+    style: SCALE_STYLES.some(([s]) => s === r.style)
+      ? (r.style as ScaleStyle)
+      : "blend",
   }
 }
 
@@ -209,14 +222,10 @@ export function formatScale(scale: Scale, value: number) {
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
 
-// a value's colour: part way from the low end's colour to the high end's
-export function scaleColor(scale: Scale, value: number) {
-  const t = Math.max(
-    0,
-    Math.min(1, (value - scale.min) / (scale.max - scale.min)),
-  )
-  const a = rgb(scale.low.color)
-  const b = rgb(scale.high.color)
+// part way (t, 0–1) from one colour to another
+function mix(from: string, to: string, t: number) {
+  const a = rgb(from)
+  const b = rgb(to)
   return `#${a
     .map((x, i) =>
       Math.round(x + (b[i] - x) * t)
@@ -224,6 +233,53 @@ export function scaleColor(scale: Scale, value: number) {
         .padStart(2, "0"),
     )
     .join("")}`
+}
+
+// the page's panels, which a faint colour fades into (so it reads as see-
+// through there, and stays a plain colour everywhere it's used)
+const PANEL = "#161617"
+
+// the colours at the scale's two ends
+export function scaleEnds(scale: Scale): [string, string] {
+  const color = scale.high.color
+  if (scale.style === "fade") return [mix(color, PANEL, 0.72), color]
+  if (scale.style === "shade")
+    return [mix(color, "#ffffff", 0.6), mix(color, "#000000", 0.55)]
+  return [scale.low.color, color]
+}
+
+// a value's colour: part way from the low end's colour to the high end's
+export function scaleColor(scale: Scale, value: number) {
+  const t = Math.max(
+    0,
+    Math.min(1, (value - scale.min) / (scale.max - scale.min)),
+  )
+  const [low, high] = scaleEnds(scale)
+  return mix(low, high, t)
+}
+
+// the scale as a CSS gradient, low to high
+export function scaleGradient(scale: Scale) {
+  const [low, high] = scaleEnds(scale)
+  return `linear-gradient(to right, ${low}, ${high})`
+}
+
+// A day's answer to a tracker, as shown: its label and colour (an answer's,
+// or the number on a scale); null if it has none, or none that fits.
+export function trackerAnswer(
+  tracker: { legend: LegendItem[]; scale: Scale | null },
+  value: string | undefined,
+): { key: string | null; label: string; color: string } | null {
+  if (value === undefined) return null
+  const scale = tracker.scale
+  if (!scale) {
+    const l = tracker.legend.find((x) => x.key === value)
+    return l ? { key: l.key, label: l.label, color: l.color } : null
+  }
+  const n = scaleValue(scale, value)
+  return n === null
+    ? null
+    : { key: null, label: formatScale(scale, n), color: scaleColor(scale, n) }
 }
 
 // What a tracker's stored `legend` holds: its answers (a list), or its scale
@@ -247,3 +303,89 @@ export function parseLegend(json: string): {
 export const storeLegend = (
   kind: { legend: LegendItem[] } | { scale: Scale },
 ) => JSON.stringify("scale" in kind ? { scale: kind.scale } : kind.legend)
+
+// ---- turning a scale into answers ------------------------------------------
+// Each answer stands for some of the scale's numbers: one number each (a
+// scale with a few steps), or a stretch of it. Days answered with a number
+// get the answer it falls in.
+
+export type ScaleGroup = LegendItem & {
+  from: number
+  to: number
+  // `to` is in it too (always for the last, or a group of whole steps)
+  closed: boolean
+}
+
+// the scale's steps, if it has a manageable number of them
+function steps(scale: Scale) {
+  if (!scale.step) return null
+  const n = Math.round((scale.max - scale.min) / scale.step) + 1
+  if (n > 1000) return null
+  return Array.from(
+    { length: n },
+    (_, i) => scaleValue(scale, scale.min + i * scale.step) ?? scale.min,
+  )
+}
+
+// how many answers a scale can become: one per step, if it has 9 or fewer
+export function stepCount(scale: Scale) {
+  const points = steps(scale)
+  return points && points.length <= 9 ? points.length : null
+}
+
+// the scale in `count` answers, low to high, coloured as the scale colours
+// them (so the grid looks the same after)
+export function groupScale(scale: Scale, count: number): ScaleGroup[] {
+  const points = steps(scale)
+  const k = Math.max(1, Math.min(9, Math.round(count)))
+  const label = (from: number, to: number) =>
+    from === to
+      ? formatScale(scale, from)
+      : `${formatScale({ ...scale, unit: "" }, from)}–${formatScale(scale, to)}`
+  const groups: Omit<ScaleGroup, "key" | "color">[] = []
+  if (points && points.length >= k) {
+    // whole steps in each, as evenly as they go
+    for (let i = 0; i < k; i++) {
+      const part = points.slice(
+        Math.floor((i * points.length) / k),
+        Math.floor(((i + 1) * points.length) / k),
+      )
+      const from = part[0]
+      const to = part[part.length - 1]
+      groups.push({ from, to, closed: true, label: label(from, to) })
+    }
+  } else {
+    // any number: equal stretches, each up to (not including) the next
+    const edge = (i: number) =>
+      Number((scale.min + ((scale.max - scale.min) * i) / k).toFixed(2))
+    for (let i = 0; i < k; i++) {
+      const from = edge(i)
+      const to = edge(i + 1)
+      groups.push({ from, to, closed: i === k - 1, label: label(from, to) })
+    }
+  }
+  return groups.map((g, i) => ({
+    ...g,
+    key: `range-${i}`,
+    color: scaleColor(scale, (g.from + g.to) / 2),
+  }))
+}
+
+// the group a number on the scale falls in
+export function groupOf(groups: ScaleGroup[], n: number) {
+  return groups.find(
+    (g) => n >= g.from && (n < g.to || (g.closed && n === g.to)),
+  )
+}
+
+// A change of what days are answered with (an old answer → its new one,
+// or null to clear those days), from a request: kept to sensible sizes.
+export function cleanRemap(raw: unknown): Record<string, string | null> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const out: Record<string, string | null> = {}
+  for (const [from, to] of Object.entries(raw).slice(0, 5000)) {
+    if (from.length > 40) continue
+    out[from] = typeof to === "string" && to && to.length <= 40 ? to : null
+  }
+  return out
+}
