@@ -195,7 +195,7 @@ export function ThreadsView({
                 key={thread.id}
                 id={`thread-${thread.id}`}
                 data-thread={thread.id}
-                className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-panel p-6 lg:scroll-mt-8"
+                className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-panel p-6 sm:scroll-mt-36 lg:scroll-mt-20"
               >
                 <ThreadTitle
                   quoteIds={thread.members

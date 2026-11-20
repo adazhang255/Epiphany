@@ -7,6 +7,7 @@ import {
   QUOTE,
   QUOTE_MARK,
   SUBHEADING,
+  UNDERLINE,
   formatFlags,
   formatRuns,
 } from "@/features/notes/lib/markdown"
@@ -22,7 +23,7 @@ export function Formatted({
   end = text.length,
 }: {
   text: string
-  flags: Uint8Array // formatFlags(text)
+  flags: Uint16Array // formatFlags(text)
   start?: number
   end?: number
 }) {
@@ -47,6 +48,12 @@ export function Formatted({
         </span>
       )
     if (run.flags & ITALIC) node = <em key={i}>{node}</em>
+    if (run.flags & UNDERLINE)
+      node = (
+        <u key={i} className="md-underline">
+          {node}
+        </u>
+      )
     if (run.flags & BOLD)
       node = (
         <strong key={i} className="font-semibold text-stone-100">
@@ -99,6 +106,7 @@ export function LiveFormatted({
         f & (MARKER | QUOTE_MARK) && "live-marker",
         f & BULLET && "live-bullet",
         f & BOLD && "live-bold",
+        f & UNDERLINE && !(f & MARKER) && "live-underline",
         f & (HEADING | SUBHEADING) && "live-heading",
         f & QUOTE && "live-quote",
       ]

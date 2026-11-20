@@ -2,12 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  NOTEBOOK_TABS,
-  QUOTES_TAB,
-  STATS_TABS,
-  type SectionTab,
-} from "@/components/sections"
+import { STATS_TABS, type SectionTab } from "@/components/sections"
 
 function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
   const pathname = usePathname()
@@ -40,11 +35,4 @@ function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
 
 export function StatsTabs() {
   return <SectionTabs tabs={STATS_TABS} label="Stats views" />
-}
-
-// Notebook and the Quotes you keep (once you've added them)
-export function NotebookTabs() {
-  return (
-    <SectionTabs tabs={[...NOTEBOOK_TABS, QUOTES_TAB]} label="Notebook views" />
-  )
 }

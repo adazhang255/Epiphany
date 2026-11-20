@@ -42,7 +42,6 @@ import {
   categoryGlyph,
   highlightType,
 } from "@/features/notes/lib/topics"
-import { PurposeBadges } from "@/components/PurposeBadges"
 import { DeleteEntryButton } from "@/components/DeleteEntryButton"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { NotebookTitle } from "@/components/NotebookTitle"
@@ -123,7 +122,6 @@ function Page({
   // the category you give it here (Uncategorized view), shown at once
   const [chosen, setChosen] = useState<string[]>([])
   const [saveError, setSaveError] = useState("")
-  const purposes = chosen.length ? chosen : note.purposes
   // highlights, kept up to date as you mark them here
   const [highlights, setHighlights] = useState(note.highlights)
   const [menu, setMenu] = useState<MenuState | null>(null)
@@ -148,12 +146,8 @@ function Page({
   }
   // the day's tracker answers (the day it's dated, in your time zone)
   const day = dayKey(new Date(note.date))
-  const answered = trackers.flatMap((t) => {
-    const a = trackerAnswer(t, t.marks[day])
-    return a ? [{ tracker: t, answer: a }] : []
-  })
+  const answered = trackers.some((t) => trackerAnswer(t, t.marks[day]))
   const s = seed(note.id)
-  const tilt = ((s % 13) - 6) / 10 // -0.6° … 0.6°
 
   // Editing happens on the entry's own page: clicking anywhere on this
   // page opens it there, ready to edit (unless you clicked a control or a
@@ -188,10 +182,9 @@ function Page({
       onClick={open}
       onMouseUp={onMouseUp}
       title={PUBLIC_SITE ? "Open" : "Edit"}
-      className="notebook notebook-page group relative flex min-h-[400px] cursor-pointer flex-col rounded-sm pr-6 font-serif text-[18px] text-stone-200 transition hover:ring-1 hover:ring-ember/60"
+      className="notebook notebook-page group relative flex cursor-pointer flex-col rounded-sm pr-6 font-serif text-[18px] text-stone-200 transition hover:ring-1 hover:ring-ember/60"
       style={{
         backgroundColor: PAPERS[s % PAPERS.length],
-        transform: `rotate(${tilt}deg)`,
       }}
     >
       {[0.12, 0.5, 0.88].map((at) => (
@@ -202,22 +195,12 @@ function Page({
           style={{ top: `${at * 100}%` }}
         />
       ))}
-      <IndexTabs purposes={purposes} sentiment={note.sentiment} />
 
       <>
-        {/* title with its category beside it, on exactly one ruled line;
-            the date sits on the right (at the foot on narrow screens) */}
+        {/* the title on exactly one ruled line (its day is the date above
+            the page) */}
         <header className="flex h-[30px] items-center gap-3">
           <NotebookTitle noteId={note.id} title={note.title} />
-          <div className="flex shrink-0 [&>ul]:flex-nowrap">
-            <PurposeBadges purposes={purposes} />
-          </div>
-          <time
-            dateTime={note.date}
-            className="ml-auto hidden shrink-0 font-mono text-[11px] uppercase leading-none tracking-widest text-stone-500 sm:block"
-          >
-            {longDate(note.date)}
-          </time>
         </header>
 
         <div ref={textRef} className="whitespace-pre-wrap break-words">
@@ -265,63 +248,45 @@ function Page({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-x-3">
-            {/* that day's trackers: a square and its answer each (on a
-                narrow page, a line of their own) */}
-            <ul
-              aria-label="That day's trackers"
-              className={`h-[30px] min-w-0 basis-full items-center gap-x-3 overflow-hidden whitespace-nowrap font-mono text-[11px] text-stone-400 sm:flex-1 sm:basis-0 ${answered.length ? "flex" : "hidden sm:flex"}`}
-            >
-              {answered.map(({ tracker, answer }) => (
-                <li key={tracker.id} className="min-w-0 shrink">
-                  <Link
-                    href={`/trackers?show=${encodeURIComponent(tracker.id)}`}
-                    title={`${tracker.name}: ${answer.label}`}
-                    className="flex min-w-0 items-center gap-1.5 hover:text-stone-200"
-                  >
-                    <span
-                      aria-hidden
-                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                      style={{ background: answer.color }}
-                    />
-                    <span className="sr-only">{tracker.name}: </span>
-                    <span className="truncate">{answer.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <span className="ml-auto shrink-0 font-mono text-[11px] text-stone-500">
-              <span className="sm:hidden">
-                {new Date(note.date).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-                <EntryTime
-                  date={note.date}
-                  createdAt={note.createdAt}
-                  before=" · "
-                />
-              </span>
-              <span className="hidden sm:inline">
-                <EntryTime date={note.date} createdAt={note.createdAt} />
-              </span>
-            </span>
-            {!PUBLIC_SITE && (
-              <Link
-                href={editHref}
-                className="shrink-0 rounded-md border border-ember/50 bg-ember/10 px-2.5 py-1 font-mono text-xs uppercase tracking-widest text-ember transition hover:border-ember hover:bg-ember/20"
-              >
-                ✎ Edit
-              </Link>
-            )}
-            <DeleteEntryButton
-              noteId={note.id}
-              title={note.title}
-              onDeleted={onDeleted}
-              onRestored={onRestored}
-              variant="outlined"
-              className="shrink-0"
+            {/* that day's trackers (on a narrow page, lines of their own) */}
+            <TrackerPills
+              trackers={trackers}
+              day={day}
+              className={`min-w-0 basis-full sm:flex-1 sm:basis-0 ${answered ? "flex" : "hidden sm:flex"}`}
             />
+            {/* Edit and Delete only while you're on the page (always
+                there on a touch screen, which can't hover) */}
+            <span className="flex shrink-0 items-center gap-3 font-mono text-[11px] opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
+              {!PUBLIC_SITE && (
+                <Link
+                  href={editHref}
+                  className="uppercase tracking-widest text-stone-400 hover:text-ember"
+                >
+                  Edit
+                </Link>
+              )}
+              <DeleteEntryButton
+                noteId={note.id}
+                title={note.title}
+                onDeleted={onDeleted}
+                onRestored={onRestored}
+              />
+            </span>
+            <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[11px] text-stone-500">
+              {note.sentiment !== null && SENTIMENT_LABELS[note.sentiment] && (
+                <span
+                  title={`Tone: ${SENTIMENT_LABELS[note.sentiment]}`}
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: SENTIMENT_COLORS[note.sentiment] }}
+                >
+                  <span className="sr-only">
+                    Tone: {SENTIMENT_LABELS[note.sentiment]}
+                  </span>
+                </span>
+              )}
+              {/* (its day is the date above it) */}
+              <EntryTime date={note.date} createdAt={note.createdAt} />
+            </span>
           </div>
         </footer>
       </>
@@ -829,57 +794,13 @@ function BlankPage({
   )
 }
 
-// Index tabs down the page's right edge, like ones stuck to a real
-// notebook's pages: one per category, then its tone. (Hover for which.)
-function IndexTabs({
-  purposes,
-  sentiment,
-}: {
-  purposes: string[]
-  sentiment: number | null
-}) {
-  const tabs = [
-    ...purposes.slice(0, 3).map((c) => ({
-      key: c,
-      label: c,
-      color: categoryColor(c),
-    })),
-    ...(sentiment !== null && SENTIMENT_LABELS[sentiment]
-      ? [
-          {
-            key: "tone",
-            label: `Tone: ${SENTIMENT_LABELS[sentiment]}`,
-            color: SENTIMENT_COLORS[sentiment],
-          },
-        ]
-      : []),
-  ]
-  if (!tabs.length) return null
-  return (
-    <ul
-      aria-label="Index tabs"
-      className="absolute left-full top-10 flex flex-col gap-1.5"
-    >
-      {tabs.map((t) => (
-        <li
-          key={t.key}
-          title={t.label}
-          className="h-9 w-2 rounded-r-[3px] shadow-[2px_2px_4px_rgb(0_0_0/0.4)] sm:h-11 sm:w-3"
-          style={{ background: t.color }}
-        >
-          <span className="sr-only">{t.label}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 // today's date, read in the browser (the server's day may not be yours)
 const noChange = () => () => {}
 const todayKey = () => dayKey(new Date())
 
-// Pages written on this day in other years, tucked in above the notebook:
-// the latest few, each as a small slip of the same paper.
+// Pages written on this day in other years, taped in above the notebook:
+// the latest few, each a short strip of the same paper (the same width and
+// writing as the pages) that unfolds to the whole entry.
 function YearsAgo({ notes }: { notes: NotebookNote[] }) {
   const today = useSyncExternalStore(noChange, todayKey, () => null)
   if (!today) return null
@@ -890,48 +811,182 @@ function YearsAgo({ notes }: { notes: NotebookNote[] }) {
     .slice(0, 3)
   if (!found.length) return null
   return (
-    <section aria-label="On this day" className="mb-12">
-      <div className="grid gap-6 sm:grid-cols-2">
-        {found.map(({ note, key }, i) => {
-          const ago = year - Number(key.slice(0, 4))
-          return (
-            <Link
-              key={note.id}
-              href={`/notes/${note.id}`}
-              className="notebook notebook-page relative block rounded-sm pb-2 pr-5 font-serif text-[16px] text-stone-300 transition hover:ring-1 hover:ring-ember/60"
-              style={{
-                backgroundColor: PAPERS[seed(note.id) % PAPERS.length],
-                transform: `rotate(${i % 2 ? 1.2 : -1.4}deg)`,
-              }}
-            >
-              {/* a strip of tape holding it in */}
-              <span
-                aria-hidden
-                className="absolute -top-2.5 left-1/2 h-5 w-20 -translate-x-1/2 -rotate-3 rounded-[2px] bg-[rgb(255_244_214/0.12)] shadow-[0_1px_2px_rgb(0_0_0/0.3)]"
-              />
-              <p className="flex h-[30px] items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-widest">
-                <span className="text-ember">
-                  {ago === 1 ? "1 year" : `${ago} years`} ago today
-                </span>
-                <span className="text-stone-500">{key.slice(0, 4)}</span>
-              </p>
-              {note.title && (
-                <p className="truncate text-[19px] text-ink">{note.title}</p>
-              )}
-              <p className="line-clamp-3">{plainText(note.content)}</p>
-            </Link>
-          )
-        })}
-      </div>
+    <section aria-label="On this day" className="mb-12 space-y-8">
+      {found.map(({ note, key }, i) => (
+        <Slip
+          key={note.id}
+          note={note}
+          ago={year - Number(key.slice(0, 4))}
+          i={i}
+        />
+      ))}
       <Link
         href="/on-this-day"
-        className="mt-4 inline-block font-mono text-[11px] uppercase tracking-widest text-stone-500 hover:text-stone-300"
+        className="inline-block font-mono text-[11px] uppercase tracking-widest text-stone-400 hover:text-stone-200"
       >
-        All of this day →
+        Everything from this day →
       </Link>
     </section>
   )
 }
+
+function Slip({
+  note,
+  ago,
+  i,
+}: {
+  note: NotebookNote
+  ago: number
+  i: number
+}) {
+  const [open, setOpen] = useState(false)
+  const text = plainText(note.content)
+  const long = text.length > 220 || text.split("\n").length > 3
+  return (
+    <article
+      className="notebook notebook-page relative rounded-sm pr-6 font-serif text-[18px] text-stone-200"
+      style={{
+        backgroundColor: PAPERS[seed(note.id) % PAPERS.length],
+        transform: `rotate(${i % 2 ? 0.5 : -0.7}deg)`,
+      }}
+    >
+      {/* strips of tape holding it in */}
+      <span
+        aria-hidden
+        className="absolute -top-3 left-[18%] h-6 w-24 -rotate-6 rounded-[2px] bg-[rgb(255_244_214/0.14)] shadow-[0_1px_2px_rgb(0_0_0/0.3)]"
+      />
+      <span
+        aria-hidden
+        className="absolute -top-3 right-[14%] h-6 w-20 rotate-[5deg] rounded-[2px] bg-[rgb(255_244_214/0.14)] shadow-[0_1px_2px_rgb(0_0_0/0.3)]"
+      />
+      <p className="flex h-[30px] items-center gap-3 font-mono text-[11px] uppercase tracking-widest">
+        <span className="rounded-sm bg-ember/15 px-1.5 leading-5 text-ember">
+          {ago === 1 ? "1 year" : `${ago} years`} ago today
+        </span>
+        <span className="truncate text-stone-500">{longDate(note.date)}</span>
+      </p>
+      <h2 className="truncate text-[22px] leading-[30px] text-ink">
+        <Link href={`/notes/${note.id}`} className="hover:underline">
+          {note.title || "Untitled"}
+        </Link>
+      </h2>
+      {open ? (
+        <div className="whitespace-pre-wrap break-words">
+          <FormattedText text={note.content} />
+        </div>
+      ) : (
+        <p className="line-clamp-3 break-words">{text}</p>
+      )}
+      <p className="flex h-[30px] items-center gap-4 font-mono text-[11px] uppercase tracking-widest">
+        {long && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="uppercase tracking-widest text-ember hover:text-ink"
+          >
+            {open ? "Fold it back ↑" : "Read it all ↓"}
+          </button>
+        )}
+        <Link
+          href={`/notes/${note.id}`}
+          className="text-stone-500 hover:text-stone-200"
+        >
+          Open the entry →
+        </Link>
+      </p>
+    </article>
+  )
+}
+
+// A day's tracker answers: each a pill in its answer's colour, named.
+function TrackerPills({
+  trackers,
+  day,
+  className = "",
+}: {
+  trackers: TrackerView[]
+  day: string
+  className?: string
+}) {
+  const answered = trackers.flatMap((t) => {
+    const a = trackerAnswer(t, t.marks[day])
+    return a ? [{ tracker: t, answer: a }] : []
+  })
+  return (
+    <ul
+      aria-label="That day's trackers"
+      className={`flex-wrap items-center gap-x-2 ${className}`}
+    >
+      {answered.map(({ tracker, answer }) => (
+        <li key={tracker.id} className="flex h-[30px] min-w-0 items-center">
+          <Link
+            href={`/trackers?show=${encodeURIComponent(tracker.id)}`}
+            title={`${tracker.name}: ${answer.label}`}
+            className="flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-sans text-xs normal-case leading-5 tracking-normal transition hover:brightness-125"
+            style={{
+              background: tint(answer.color, 0.16),
+              borderColor: tint(answer.color, 0.55),
+            }}
+          >
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+              style={{ background: answer.color }}
+            />
+            <span className="max-w-[7rem] truncate text-stone-400 sm:max-w-[10rem]">
+              {tracker.name}
+            </span>
+            <span className="shrink-0 font-medium text-stone-100">
+              {answer.label}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// A small divider above each day's pages: the day's date on the left
+// edge (Today or Yesterday picked out), then a thin line across.
+function DayDivider({ day, count }: { day: string; count: number }) {
+  const today = useSyncExternalStore(noChange, todayKey, () => null)
+  const yesterday = today
+    ? dayKey(new Date(new Date(`${today}T12:00:00`).getTime() - 864e5))
+    : null
+  const near = day === today ? "Today" : day === yesterday ? "Yesterday" : null
+  return (
+    <h2 className="mb-5 flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest text-stone-500">
+      <span className="shrink-0">
+        {near && <span className="text-ember">{near} · </span>}
+        {niceDay(day)}
+        {count > 1 && ` · ${count} pages`}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-white/10" />
+    </h2>
+  )
+}
+
+// Pages in a row written the same day (in your time zone), together.
+function days(notes: NotebookNote[]) {
+  const out: { day: string; pages: NotebookNote[] }[] = []
+  for (const note of notes) {
+    const day = dayKey(new Date(note.date))
+    const last = out.at(-1)
+    if (last?.day === day) last.pages.push(note)
+    else out.push({ day, pages: [note] })
+  }
+  return out
+}
+
+// "Fri, November 13, 2026"
+const niceDay = (day: string) =>
+  new Date(`${day}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
 
 // Endless scroll: the next pages load as you near the bottom.
 // pages added each time you reach the bottom
@@ -1030,27 +1085,51 @@ export function NotebookFeed({
     )
   }
 
+  // (in a day's tray, its trackers are shown once, above its pages)
+  const page = (note: NotebookNote, withTrackers = true) => (
+    <Page
+      note={note}
+      sorting={filter === "uncategorized"}
+      custom={custom}
+      trackers={withTrackers ? trackers : []}
+      onDeleted={() => setGone((g) => new Set(g).add(note.id))}
+      onRestored={() =>
+        setGone((g) => {
+          const next = new Set(g)
+          next.delete(note.id)
+          return next
+        })
+      }
+    />
+  )
+
   return (
     <div>
       {blank && <div className="mb-12">{blank}</div>}
       {writable && <YearsAgo notes={notes} />}
+      {/* one column of pages, all the same width; each day under a small
+          divider with its date */}
       <ol className="space-y-12">
-        {notes.slice(0, count).map((note) => (
-          <li key={note.id}>
-            <Page
-              note={note}
-              sorting={filter === "uncategorized"}
-              custom={custom}
-              trackers={trackers}
-              onDeleted={() => setGone((g) => new Set(g).add(note.id))}
-              onRestored={() =>
-                setGone((g) => {
-                  const next = new Set(g)
-                  next.delete(note.id)
-                  return next
-                })
-              }
-            />
+        {days(notes.slice(0, count)).map(({ day, pages }) => (
+          <li key={`${day}-${pages[0].id}`}>
+            <DayDivider day={day} count={pages.length} />
+            <section aria-label={`${pages.length} ${pages.length === 1 ? "page" : "pages"} on ${niceDay(day)}`}>
+              {/* the day's trackers, once for all its pages */}
+              {pages.length > 1 && (
+                <TrackerPills
+                  trackers={trackers}
+                  day={day}
+                  className="-mt-2 mb-3 flex"
+                />
+              )}
+              <ol className="space-y-6">
+                {pages.map((note) => (
+                  <li key={note.id}>
+                    {page(note, pages.length === 1)}
+                  </li>
+                ))}
+              </ol>
+            </section>
           </li>
         ))}
       </ol>

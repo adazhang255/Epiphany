@@ -4,14 +4,7 @@ import { Fraunces, Space_Mono, Work_Sans } from "next/font/google"
 import { SiteHeader, TopTools } from "@/components/SiteHeader"
 import { AskBubble } from "@/components/AskBubble"
 import "./globals.css"
-import {
-  PUBLIC_SITE,
-  SITE_AUTHOR,
-  SITE_DESCRIPTION,
-  SITE_TITLE,
-} from "@/lib/site-mode"
-import { quotesEnabled } from "@/features/quotes/quotes"
-import { connection } from "next/server"
+import { SITE_AUTHOR, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site-mode"
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -42,25 +35,18 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // the optional Quotes section, if you've added it (never public); read
-  // on each visit, so a page built ahead doesn't keep an old answer
-  let quotes = false
-  if (!PUBLIC_SITE) {
-    await connection()
-    quotes = await quotesEnabled()
-  }
   return (
     <html
       lang="en"
       className={`${fraunces.variable} ${workSans.variable} ${spaceMono.variable} antialiased`}
     >
       <body className="min-h-screen font-sans">
-        <SiteHeader quotes={quotes} />
+        <SiteHeader />
         {/* beside the side nav on wide screens */}
         <div className="lg:pl-56">
           <TopTools />

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
+import { plainText } from "@/features/notes/lib/markdown"
 
 // Unsaved writing is kept in this browser as you type, so leaving the page
 // (a stray click, a link, a reload, a crash) never loses it: coming back
@@ -79,7 +80,12 @@ export function useNewEntryDrafts() {
 export function draftName(draft: NewEntryDraft | null | undefined) {
   const title = draft?.title?.trim()
   if (title) return title
-  const words = draft?.content?.trim().split(/\s+/).slice(0, 5).join(" ")
+  // (as it reads: no formatting markers)
+  const words = plainText(draft?.content ?? "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 5)
+    .join(" ")
   return words ? `${words}…` : "New draft"
 }
 

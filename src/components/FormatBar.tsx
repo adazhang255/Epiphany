@@ -1,7 +1,7 @@
 "use client"
 
-// Formatting for an entry's text box: bold, italic, bullets, headings and
-// quotes, as buttons and ⌘B / ⌘I / ⌘⇧8 / ⌘⌥1 / ⌘⇧. ; Enter on a bullet line
+// Formatting for an entry's text box: bold, italic, underline, bullets,
+// headings and quotes, as buttons and ⌘B / ⌘I / ⌘U / ⌘⇧8 / ⌘⌥1 / ⌘⇧. ; Enter on a bullet line
 // starts the next one. They write the Markdown markers into the text (see
 // lib/markdown), as typing them would, so ⌘Z undoes them and highlights
 // follow the text as usual. Preview shows the text formatted.
@@ -40,6 +40,8 @@ const bold = (el: HTMLTextAreaElement) =>
   apply(el, toggleWrap(el.value, el.selectionStart, el.selectionEnd, "**"))
 const italic = (el: HTMLTextAreaElement) =>
   apply(el, toggleWrap(el.value, el.selectionStart, el.selectionEnd, "*"))
+const underline = (el: HTMLTextAreaElement) =>
+  apply(el, toggleWrap(el.value, el.selectionStart, el.selectionEnd, "__"))
 const bullets = (el: HTMLTextAreaElement) =>
   apply(el, toggleBullets(el.value, el.selectionStart, el.selectionEnd))
 const heading = (el: HTMLTextAreaElement) =>
@@ -57,6 +59,7 @@ export function formatKeyDown(
   let done = false
   if (mod && !e.shiftKey && !e.altKey && key === "b") done = bold(el)
   else if (mod && !e.shiftKey && !e.altKey && key === "i") done = italic(el)
+  else if (mod && !e.shiftKey && !e.altKey && key === "u") done = underline(el)
   else if (mod && e.shiftKey && (e.code === "Digit8" || key === "*"))
     done = bullets(el)
   else if (mod && e.altKey && e.code === "Digit1") done = heading(el)
@@ -81,6 +84,13 @@ const TOOLS = [
     face: "I",
     style: "italic font-serif",
     act: italic,
+  },
+  {
+    label: "Underline",
+    keys: "⌘U",
+    face: "U",
+    style: "underline underline-offset-2",
+    act: underline,
   },
   {
     label: "Heading (again for a smaller one, again for none)",

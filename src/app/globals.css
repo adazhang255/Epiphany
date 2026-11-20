@@ -288,7 +288,6 @@ dialog.nav-drawer[open] {
   border: 2px solid #1c1c1d;
 }
 
-
 /* Formatting in an entry's text (see lib/markdown): the ** and * markers stay
    in the page, so its text matches the entry's, but aren't shown; a bullet
    line's "-" is drawn as a dot. */
@@ -376,6 +375,16 @@ dialog.nav-drawer[open] {
   color: rgb(168 162 158 / 0.45);
   text-shadow: none;
 }
+/* underlined: the same in the live copy (italic words are each slanted on
+   their own, so they're underlined on their own too) */
+.md-underline,
+.live-underline,
+.live-underline .live-slant {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
 .live-slant {
   display: inline-block;
   transform: skewX(-9deg);

@@ -16,7 +16,7 @@ export function toggleWrap(
   v: string,
   selStart: number,
   selEnd: number,
-  mark: "**" | "*",
+  mark: "**" | "*" | "__",
 ): TextEdit {
   let s = selStart
   let e = selEnd
@@ -29,7 +29,7 @@ export function toggleWrap(
   const wrapped =
     s >= n &&
     (n === 2
-      ? v.slice(s - 2, s) === "**" && v.slice(e, e + 2) === "**"
+      ? v.slice(s - 2, s) === mark && v.slice(e, e + 2) === mark
       : v[s - 1] === "*" &&
         (v[s - 2] !== "*" || v.slice(s - 3, s) === "***") &&
         v[e] === "*" &&

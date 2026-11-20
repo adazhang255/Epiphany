@@ -1,7 +1,7 @@
 import { findQuote } from "@/features/notes/lib/findQuote"
 
 // Formatting in an entry's text, written the Markdown way: **bold**,
-// *italic* (or _italic_), and at the start of a line "- " (or "* ") for a
+// *italic* (or _italic_), __underlined__, and at the start of a line "- " (or "* ") for a
 // bullet, "# " for a heading ("## " or "### " a smaller one) and "> " for a
 // quote. The text is stored just as written; the markers are hidden when
 // it's shown but stay in the page, so a character's place on screen is its
@@ -15,18 +15,22 @@ export const HEADING = 16 // a "# " line
 export const SUBHEADING = 32 // a "## " or "### " line
 export const QUOTE = 64 // a "> " line
 export const QUOTE_MARK = 128 // its ">", shown as a bar
+export const UNDERLINE = 256
 
 const HEADING_LINE = /^(#{1,3})[ \t]+(?=\S)[^\n]*/gm
 const QUOTE_LINE = /^>([ \t]?)[^\n]*/gm
 
 const BULLET_LINE = /^([ \t]*)([-*])[ \t]+(?=\S)/gm
 const BOLD_RUN = /\*\*(?=\S)([^\n]*?\S)\*\*/g
+// (not inside a word: snake__case, __init__x)
+const UNDERLINE_RUN =
+  /(?<![\p{L}\p{N}_])__(?=[^\s_])([^\n]*?[^\s_])__(?![\p{L}\p{N}_])/gu
 const ITALIC_RUN =
   /(?<![\p{L}\p{N}*_])([*_])(?=[^\s*_])([^\n]*?[^\s*_])\1(?![\p{L}\p{N}*_])/gu
 
 // One set of flags per character of `text`.
-export function formatFlags(text: string): Uint8Array {
-  const flags = new Uint8Array(text.length)
+export function formatFlags(text: string): Uint16Array {
+  const flags = new Uint16Array(text.length)
   // markers already claimed are blanked out (same length) for later passes
   let rest = text
   const blank = (start: number, end: number) => {
@@ -64,7 +68,15 @@ export function formatFlags(text: string): Uint8Array {
     blank(start, start + 2)
     blank(end - 2, end)
   }
-  // (a blanked bold marker counts as neither a letter nor a marker here, so
+  for (const m of [...rest.matchAll(UNDERLINE_RUN)]) {
+    const start = m.index
+    const end = start + m[0].length
+    for (let i = start; i < end; i++) flags[i] |= UNDERLINE
+    for (const i of [start, start + 1, end - 2, end - 1]) flags[i] |= MARKER
+    blank(start, start + 2)
+    blank(end - 2, end)
+  }
+  // (a blanked bold or underline marker counts as neither a letter nor a marker here, so
   // "*a **b** c*" is italic around the bold)
   for (const m of [...rest.matchAll(ITALIC_RUN)]) {
     const start = m.index
@@ -81,7 +93,7 @@ export type FormatRun = { text: string; flags: number }
 // `text` from `start` to `end`, cut where its formatting changes.
 export function formatRuns(
   text: string,
-  flags: Uint8Array,
+  flags: Uint16Array,
   start = 0,
   end = text.length,
 ): FormatRun[] {
@@ -109,7 +121,7 @@ export function stripInline(text: string) {
     out += text[i]
   }
   // a marker cut off from its pair (a highlight ending mid-bold)
-  return out.replace(/^\*\*(?=\S)|(?<=\S)\*\*$/g, "")
+  return out.replace(/^(\*\*|__)(?=\S)|(?<=\S)(\*\*|__)$/g, "")
 }
 
 // For a snippet: no markers, and bullets as "•".
@@ -126,6 +138,7 @@ export function shownRuns(text: string) {
       text: run.flags & BULLET ? "•" : run.text,
       bold: Boolean(run.flags & BOLD),
       italic: Boolean(run.flags & ITALIC),
+      underline: Boolean(run.flags & UNDERLINE),
       heading: run.flags & HEADING ? 1 : run.flags & SUBHEADING ? 2 : 0,
       quote: Boolean(run.flags & QUOTE),
     }))

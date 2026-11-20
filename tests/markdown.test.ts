@@ -8,6 +8,7 @@ import {
   QUOTE,
   QUOTE_MARK,
   SUBHEADING,
+  UNDERLINE,
   formatFlags,
   formatRuns,
   plainText,
@@ -24,6 +25,7 @@ const shown = (text: string) =>
       let t = r.flags & BULLET ? "•" : r.text
       if (r.flags & BOLD) t = `<b>${t}</b>`
       if (r.flags & ITALIC) t = `<i>${t}</i>`
+      if (r.flags & UNDERLINE) t = `<u>${t}</u>`
       return t
     })
     .join("")
@@ -159,5 +161,25 @@ describe("headings and quotes", () => {
     expect(
       after("[> a\n> b]", (v, s, e) => toggleLines(v, s, e, "quote")),
     ).toBe("[a\nb]")
+  })
+})
+
+describe("underline", () => {
+  const under = (v: string, s: number, e: number) => toggleWrap(v, s, e, "__")
+  it("shows __words__ underlined, apart from italic and snake_case", () => {
+    expect(shown("a __b c__ d")).toBe("a <u>b c</u> d")
+    expect(shown("_a_ __b__")).toBe("<i>a</i> <u>b</u>")
+    expect(shown("**__both__**")).toBe("<u><b>both</b></u>")
+    for (const t of ["__init__x", "snake__case", "____", "__ x__"])
+      expect(shown(t)).not.toContain("<u>")
+  })
+  it("leaves its markers out of highlights and snippets", () => {
+    expect(stripInline("a __b__ c")).toBe("a b c")
+    expect(stripInline("__cut off")).toBe("cut off")
+  })
+  it("the button wraps the selection, and unwraps it", () => {
+    expect(after("a [word ]b", under)).toBe("a __[word]__ b")
+    expect(after("a __[word]__ b", under)).toBe("a [word] b")
+    expect(after("a [__word__] b", under)).toBe("a [word] b")
   })
 })

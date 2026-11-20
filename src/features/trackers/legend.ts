@@ -239,29 +239,51 @@ function mix(from: string, to: string, t: number) {
 // through there, and stays a plain colour everywhere it's used)
 const PANEL = "#161617"
 
-// the colours at the scale's two ends
-export function scaleEnds(scale: Scale): [string, string] {
-  const color = scale.high.color
-  if (scale.style === "fade") return [mix(color, PANEL, 0.72), color]
-  if (scale.style === "shade")
-    return [mix(color, "#ffffff", 0.6), mix(color, "#000000", 0.55)]
-  return [scale.low.color, color]
+// the colour, all its hue taken out (the same lightness, in grey)
+function grey(hex: string) {
+  const [r, g, b] = rgb(hex)
+  const l = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
+    .toString(16)
+    .padStart(2, "0")
+  return `#${l}${l}${l}`
 }
 
-// a value's colour: part way from the low end's colour to the high end's
+// the scale's colour part way (t, 0–1) from its low end to its high end.
+// The one-colour styles change a lot across the range, so low and high days
+// look clearly different: "fade" starts grey and nearly see-through and
+// gains colour and strength as it rises; "shade" runs from nearly white
+// through the full colour to nearly black.
+function scaleAt(scale: Scale, t: number) {
+  const color = scale.high.color
+  if (scale.style === "fade")
+    return mix(mix(grey(color), color, t), PANEL, 0.9 * (1 - t))
+  if (scale.style === "shade") {
+    const light = mix(color, "#ffffff", 0.82)
+    const dark = mix(color, "#000000", 0.72)
+    return t < 0.5 ? mix(light, color, t * 2) : mix(color, dark, t * 2 - 1)
+  }
+  return mix(scale.low.color, color, t)
+}
+
+// the colours at the scale's two ends
+export function scaleEnds(scale: Scale): [string, string] {
+  return [scaleAt(scale, 0), scaleAt(scale, 1)]
+}
+
+// a value's colour, by where it falls between the scale's ends
 export function scaleColor(scale: Scale, value: number) {
   const t = Math.max(
     0,
     Math.min(1, (value - scale.min) / (scale.max - scale.min)),
   )
-  const [low, high] = scaleEnds(scale)
-  return mix(low, high, t)
+  return scaleAt(scale, t)
 }
 
-// the scale as a CSS gradient, low to high
+// the scale as a CSS gradient, low to high (in steps, since a one-colour
+// scale doesn't run straight from one end to the other)
 export function scaleGradient(scale: Scale) {
-  const [low, high] = scaleEnds(scale)
-  return `linear-gradient(to right, ${low}, ${high})`
+  const stops = [0, 0.25, 0.5, 0.75, 1].map((t) => scaleAt(scale, t))
+  return `linear-gradient(to right, ${stops.join(", ")})`
 }
 
 // A day's answer to a tracker, as shown: its label and colour (an answer's,

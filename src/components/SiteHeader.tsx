@@ -3,21 +3,13 @@
 import { SITE_TITLE } from "@/lib/site-mode"
 import { usePublicView } from "@/components/usePublicView"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react"
+import { usePathname } from "next/navigation"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import {
   NOTEBOOK_TABS,
   STATS_TABS,
   THREADS_TABS,
   TIMELINE_TABS,
-  QUOTES_TAB,
 } from "@/components/sections"
 import { useWriter } from "@/components/writeStatus"
 import { SAVE_BUTTON } from "@/components/SaveCancel"
@@ -55,21 +47,6 @@ const sections = [
     icon: "M2.5 13.5h11M4.5 13.5v-4M8 13.5v-8M11.5 13.5v-6",
   },
 ]
-
-// whether you've added Quotes (from the layout, which reads the setting):
-// then it's a tab under Notebook (never on the public site)
-const QuotesOn = createContext(false)
-const withQuotes = (on: boolean) =>
-  on
-    ? sections.map((section) =>
-        section.href === "/notebook"
-          ? { ...section, tabs: [...section.tabs, QUOTES_TAB] }
-          : section,
-      )
-    : sections
-function useSections() {
-  return withQuotes(useContext(QuotesOn))
-}
 
 // Tools that move writing in or out, kept apart from the reading sections.
 const tools = [
@@ -142,7 +119,7 @@ function SectionIcon({
 // screens, and in the menu on narrower ones.
 function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const list = useSections()
+  const list = sections
   return (
     <nav aria-label="Sections" className="space-y-4">
       {list.map((section) => {
@@ -187,50 +164,10 @@ function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
                 })}
               </ul>
             )}
-            {section.href === "/notebook" && (
-              <AddQuotesLink onNavigate={onNavigate} />
-            )}
           </div>
         )
       })}
     </nav>
-  )
-}
-
-// "+ Quotes", under Notebook: add the optional Quotes tab (until it's there)
-function AddQuotesLink({ onNavigate }: { onNavigate?: () => void }) {
-  const on = useContext(QuotesOn)
-  const readOnly = usePublicView()
-  const router = useRouter()
-  const [error, setError] = useState("")
-  if (on || readOnly) return null
-  async function add() {
-    setError("")
-    const res = await fetch("/api/quotes/section", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ on: true }),
-    }).catch(() => null)
-    if (!res?.ok) {
-      const data = await res?.json().catch(() => null)
-      return setError(data?.error ?? "Couldn't reach the app.")
-    }
-    onNavigate?.()
-    router.push("/quotes")
-    router.refresh()
-  }
-  return (
-    <div className="ml-[1.05rem] mt-1 pl-3">
-      <button
-        type="button"
-        onClick={add}
-        title="Add a Quotes tab, for quotes you want to keep"
-        className="px-2 text-xs text-stone-600 transition hover:text-stone-300 pointer-coarse:py-2"
-      >
-        + Quotes
-      </button>
-      {error && <p className="mt-1 text-xs text-rose-300">{error}</p>}
-    </div>
   )
 }
 
@@ -450,7 +387,7 @@ export function TopTools() {
   )
 }
 
-export function SiteHeader({ quotes = false }: { quotes?: boolean }) {
+export function SiteHeader() {
   const pathname = usePathname()
   const readOnly = usePublicView()
   const wide = useWide()
@@ -466,12 +403,12 @@ export function SiteHeader({ quotes = false }: { quotes?: boolean }) {
   const menuOpen = menu && !wide
 
   // the section you're in, beside the title (the menu holds the rest)
-  const here = withQuotes(quotes).find((section) =>
+  const here = sections.find((section) =>
     section.tabs.some((tab) => tab.href === pathname),
   )
 
   return (
-    <QuotesOn.Provider value={quotes}>
+    <>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[90] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-stone-900"
@@ -536,6 +473,6 @@ export function SiteHeader({ quotes = false }: { quotes?: boolean }) {
         onClose={() => setMenu(false)}
         opener={menuButton}
       />
-    </QuotesOn.Provider>
+    </>
   )
 }
