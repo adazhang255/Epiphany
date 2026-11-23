@@ -1,5 +1,6 @@
 "use client"
 
+import { CHIP } from "@/components/buttonStyles"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -40,11 +41,7 @@ function NewThreadInner() {
 
   if (!open)
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-full border border-ember/50 bg-ember/10 px-4 py-1.5 text-sm text-ember transition hover:border-ember hover:bg-ember/20"
-      >
+      <button type="button" onClick={() => setOpen(true)} className={CHIP}>
         + New thread
       </button>
     )

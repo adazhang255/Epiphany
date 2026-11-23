@@ -4,13 +4,13 @@ import { showUndo } from "@/components/UndoToast"
 import { useEffect, useRef, useState } from "react"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { TrashIcon } from "@/components/TrashIcon"
-import { StartThreadForm } from "@/components/StartThreadForm"
+import { ThreadPicker } from "@/components/ThreadPicker"
 import { OnTop } from "@/components/OnTop"
 import { spotUnder } from "@/features/notes/lib/caret"
 
 // The small menu for marking an entry's text where it's shown (the entry
 // page, the notebook): select words to mark them as a type, or click a
-// highlight to change its type or remove it. It opens just under where the
+// highlight to change its type, put it in a thread or remove it. It opens just under where the
 // selection ends (or under the highlight).
 
 export type Highlight = { id: string; quote: string; category: string }
@@ -202,8 +202,8 @@ export function HighlightMenu({
           )}
         </div>
         {menu.kind === "existing" && starting && (
-          <div className="mt-2 w-72 max-w-[88vw] border-t border-white/10 pt-2 text-xs">
-            <StartThreadForm item={menu.id} autoFocus />
+          <div className="mt-2 w-72 max-w-[88vw] border-t border-white/10 pt-2">
+            <ThreadPicker items={[menu.id]} />
           </div>
         )}
         <div className="mt-1.5 flex justify-end gap-4 px-1 text-[11px]">
@@ -213,7 +213,7 @@ export function HighlightMenu({
               onClick={() => setStarting(true)}
               className="mr-auto text-stone-400 hover:text-ember"
             >
-              ⇢ Start a thread
+              ⇢ Add to a thread
             </button>
           )}
           <button

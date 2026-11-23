@@ -10,6 +10,7 @@ import { PUBLIC_SITE } from "@/lib/site-mode"
 import { TodayTrackers, TrackersProvider } from "@/components/Trackers"
 import { listTrackers } from "@/features/trackers/trackers"
 import { dayKey } from "@/features/notes/lib/time"
+import { getStarred, HIGHLIGHT_STARS } from "@/features/notes/stars"
 
 export const dynamic = "force-dynamic"
 
@@ -18,13 +19,17 @@ export const dynamic = "force-dynamic"
 // ?type, ?order, ?q and ?kind in the browser (so the public site, built
 // once, filters the same way).
 export default async function TimelinePage() {
-  const [timeline, duplicates, questions, trackers] = await Promise.all([
-    getTimeline(),
-    PUBLIC_SITE ? [] : findDuplicateGroups(),
-    loadQuestionViews(),
-    // today's answers, first thing (your own: never on the public site)
-    PUBLIC_SITE ? null : listTrackers(),
-  ])
+  const [timeline, duplicates, questions, trackers, starred] =
+    await Promise.all([
+      getTimeline(),
+      PUBLIC_SITE ? [] : findDuplicateGroups(),
+      loadQuestionViews(),
+      // today's answers, first thing (your own: never on the public site)
+      PUBLIC_SITE ? null : listTrackers(),
+      // highlights you starred (your own: not on the public site)
+      PUBLIC_SITE ? ([] as string[]) : getStarred(HIGHLIGHT_STARS),
+    ])
+  const stars = new Set(starred)
   const notes = timeline.map((n) => ({
     id: n.id,
     title: n.title,
@@ -37,6 +42,7 @@ export default async function TimelinePage() {
       quote: q.quote,
       category: q.category,
       manual: q.manual,
+      starred: stars.has(q.id),
     })),
   }))
   const groups: DuplicateGroups = duplicates.map((g) => ({

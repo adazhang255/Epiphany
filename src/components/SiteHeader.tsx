@@ -15,6 +15,7 @@ import { useWriter } from "@/components/writeStatus"
 import { SAVE_BUTTON } from "@/components/SaveCancel"
 import { AnalysisIndicator } from "@/components/AnalysisIndicator"
 import { ChartJobsIndicator } from "@/components/ChartJobsIndicator"
+import { ThreadsGrew } from "@/components/ThreadsGrew"
 
 // Places to read and explore; each has its own tabs inside.
 const sections = [
@@ -140,6 +141,7 @@ function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
             >
               <SectionIcon section={section} />
               {section.label}
+              {section.href === "/threads" && <ThreadsGrew />}
             </Link>
             {section.tabs.length > 1 && (
               <ul className="ml-[1.05rem] mt-1 space-y-0.5 border-l border-white/10 pl-3">

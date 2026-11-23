@@ -1,5 +1,6 @@
 "use client"
 
+import { BackToTop } from "@/components/BackToTop"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useMemo } from "react"
@@ -95,6 +96,7 @@ export function NotebookView({
 
   return (
     <div className="mx-auto max-w-3xl pt-12">
+      <BackToTop />
       <header className="mb-8">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
           Notebook
@@ -114,14 +116,14 @@ export function NotebookView({
                 ? `${notes.length} starred ${notes.length === 1 ? "entry" : "entries"}, newest first. Star a page (☆ by its title) to keep it here.`
                 : "Nothing starred yet. Star a page (☆ by its title) to keep it here."
               : filtered
-              ? q
-                ? found?.loading
-                  ? "Searching…"
-                  : PUBLIC_SITE
-                    ? `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""} about “${q}”, by their words.`
-                    : `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""} about “${q}”, most relevant first: ones using your words, then ones close in meaning.${first.byMeaning ? "" : " (Matching by meaning is off: Ollama isn't running, so only exact words were matched.)"}`
-                : `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""}, newest first. Click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`
-              : `${facets.total} ${facets.total === 1 ? "entry" : "entries"}, newest first. Keep scrolling to turn back through the notebook; click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`}
+                ? q
+                  ? found?.loading
+                    ? "Searching…"
+                    : PUBLIC_SITE
+                      ? `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""} about “${q}”, by their words.`
+                      : `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""} about “${q}”, most relevant first: ones using your words, then ones close in meaning.${first.byMeaning ? "" : " (Matching by meaning is off: Ollama isn't running, so only exact words were matched.)"}`
+                  : `${first.count} of ${facets.total} entries${category ? ` in ${category}` : ""}, newest first. Click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`
+                : `${facets.total} ${facets.total === 1 ? "entry" : "entries"}, newest first. Keep scrolling to turn back through the notebook; click a page to open it${PUBLIC_SITE ? "" : " and edit"}.`}
         </p>
         {/* what's shown: the whole journal, or the entries filtered here */}
         <ExportDocsButton

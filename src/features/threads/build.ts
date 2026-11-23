@@ -8,6 +8,7 @@ import { highlightType } from "@/features/notes/lib/topics"
 import { knownTitle } from "@/features/threads/titles"
 import { parseThread } from "@/features/threads/field"
 import { cachedPairs } from "@/features/threads/pairCache"
+import { addedAt } from "@/features/threads/grew"
 
 // Every thread on the Threads page, from three sources:
 //   - "pinned": passages you put in a thread (their `thread` is that id)
@@ -31,7 +32,9 @@ export async function getThreads(level: MatchLevel = "related") {
 // their embeddings: which ones are alike is kept between visits (see
 // pairCache), and only new or changed ones are compared.
 export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
-  const note = { select: { id: true, title: true, date: true } }
+  const note = {
+    select: { id: true, title: true, date: true, createdAt: true },
+  }
   const [rows, questions, embedded, embeddedQuestions] = await Promise.all([
     prisma.quote.findMany({ omit: { embedding: true }, include: { note } }),
     prisma.question.findMany({
@@ -66,6 +69,7 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
     date: q.note.date,
     embedding: [],
     kind: highlightType(q.category),
+    addedAt: addedAt(q.createdAt, q.note.createdAt),
   })
   const fromQuestion = (q: (typeof questions)[number]): ThreadQuote => ({
     id: `q-${q.id}`,
@@ -77,6 +81,7 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
     embedding: [],
     kind: "Question",
     href: `/notes/${q.note.id}`,
+    addedAt: addedAt(q.createdAt, q.note.createdAt),
   })
   // a question already highlighted takes part as that highlight
   const byNote = new Map<string, string[]>()

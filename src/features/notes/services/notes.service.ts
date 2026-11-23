@@ -11,7 +11,7 @@ import {
   parsePurposes,
 } from "@/features/notes/lib/topics"
 import { stripInline } from "@/features/notes/lib/markdown"
-import { getStarred } from "@/features/notes/stars"
+import { getStarred, HIGHLIGHT_STARS } from "@/features/notes/stars"
 import {
   deleteWithBackup,
   loadForBackup,
@@ -140,10 +140,18 @@ export async function saveAnalysis(
   })
   const answered = new Map(previous.map((q) => [q.quote, q]))
 
-  // Highlights you marked yourself, and answers linked to questions, stay;
-  // AI ones that overlap them are dropped.
+  // Highlights you marked yourself or starred, and answers linked to
+  // questions, stay; AI ones that overlap them are dropped.
+  const starred = await getStarred(HIGHLIGHT_STARS)
   const mine = await prisma.quote.findMany({
-    where: { noteId, OR: [{ manual: true }, { replyToId: { not: null } }] },
+    where: {
+      noteId,
+      OR: [
+        { manual: true },
+        { replyToId: { not: null } },
+        { id: { in: starred } },
+      ],
+    },
     select: { quote: true },
   })
   const overlapsMine = (text: string) =>
@@ -152,7 +160,12 @@ export async function saveAnalysis(
   return prisma.$transaction([
     updateNote,
     prisma.quote.deleteMany({
-      where: { noteId, manual: false, replyToId: null },
+      where: {
+        noteId,
+        manual: false,
+        replyToId: null,
+        id: { notIn: starred },
+      },
     }),
     prisma.quote.createMany({
       data: analysis.highlights

@@ -1,5 +1,6 @@
 "use client"
 
+import { PILL } from "@/components/buttonStyles"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -79,7 +80,7 @@ function AddHighlightToThreadInner({ thread }: { thread: ThreadRef }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400 transition hover:border-white/25 hover:text-stone-200"
+        className={PILL}
       >
         + Add a highlight
       </button>

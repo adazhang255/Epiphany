@@ -1,5 +1,6 @@
 "use client"
 
+import { PILL } from "@/components/buttonStyles"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -33,12 +34,7 @@ function EmbedMissingButtonInner({ count }: { count: number }) {
         {count} {count === 1 ? "highlight hasn't" : "highlights haven't"} been
         read for meaning yet.
       </span>
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className="rounded-full border border-white/15 px-3 py-1 text-stone-200 transition hover:bg-white/5 disabled:opacity-60"
-      >
+      <button type="button" onClick={run} disabled={pending} className={PILL}>
         {pending ? "Reading…" : "Read them now"}
       </button>
       {error && (

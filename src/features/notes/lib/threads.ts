@@ -13,6 +13,8 @@ export type ThreadQuote = {
   kind?: string
   // where it opens (defaults to the highlight in its entry)
   href?: string
+  // when it came into the journal (see threads/grew)
+  addedAt?: Date
 }
 
 export type Thread = {

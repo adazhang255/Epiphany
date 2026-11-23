@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { quickScroll } from "@/lib/quickScroll"
 
 // Below the sticky header (and the mobile month strip) the walker can be dragged.
 const SCRUB_TOP = 72
@@ -46,7 +47,7 @@ export function DraggableTimeline({ children }: { children: React.ReactNode }) {
       }
       if (nearest === null || Math.abs(nearest) > LAND_RANGE) return
       if (Math.abs(nearest) <= 1.5) setHolding(true)
-      else window.scrollBy({ top: nearest, behavior: "smooth" })
+      else quickScroll(window.scrollY + nearest, 240)
     }
 
     function update() {

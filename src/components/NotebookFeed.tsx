@@ -159,8 +159,15 @@ function Page({
       return
     if (window.getSelection()?.toString()) return
     if (menu) return setMenu(null)
+    // on the title, wait a moment: a double-click there renames it instead
+    if ((e.target as HTMLElement).closest("[data-notebook-title]")) {
+      clearTimeout(opening.current)
+      opening.current = window.setTimeout(() => router.push(editHref), 280)
+      return
+    }
     router.push(editHref)
   }
+  const opening = useRef<number | undefined>(undefined)
 
   // select words on the page to mark them
   function onMouseUp() {
@@ -174,6 +181,7 @@ function Page({
       ref={page}
       id={`n-${note.id}`}
       onClick={open}
+      onDoubleClick={() => clearTimeout(opening.current)}
       onMouseUp={onMouseUp}
       title={PUBLIC_SITE ? "Open" : "Edit"}
       className="notebook notebook-page group relative flex cursor-pointer flex-col rounded-sm pr-6 font-serif text-[18px] text-stone-200 transition hover:ring-1 hover:ring-ember/60"
@@ -262,7 +270,7 @@ function Page({
               day={day}
               className={`min-w-0 basis-full sm:flex-1 sm:basis-0 ${answered ? "flex" : "hidden sm:flex"}`}
             />
-            {/* Edit and Delete only while you're on the page (always
+            {/* Edit only while you're on the page (always
                 there on a touch screen, which can't hover) */}
             <span className="flex shrink-0 items-center gap-3 font-mono text-[11px] opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
               {!PUBLIC_SITE && (
@@ -273,12 +281,6 @@ function Page({
                   Edit
                 </Link>
               )}
-              <DeleteEntryButton
-                noteId={note.id}
-                title={note.title}
-                onDeleted={onDeleted}
-                onRestored={onRestored}
-              />
             </span>
             <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[11px] text-stone-500">
               {note.sentiment !== null && SENTIMENT_LABELS[note.sentiment] && (
@@ -294,6 +296,15 @@ function Page({
               )}
               {/* (its day is the date above it) */}
               <EntryTime date={note.date} createdAt={note.createdAt} />
+              {/* deleting it: bottom right, while you're on the page */}
+              <span className="opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
+                <DeleteEntryButton
+                  noteId={note.id}
+                  title={note.title}
+                  onDeleted={onDeleted}
+                  onRestored={onRestored}
+                />
+              </span>
             </span>
           </div>
         </footer>
@@ -1067,7 +1078,9 @@ export function NotebookFeed({
         {days(notes.slice(0, count)).map(({ day, pages }) => (
           <li key={`${day}-${pages[0].id}`}>
             <DayDivider day={day} count={pages.length} />
-            <section aria-label={`${pages.length} ${pages.length === 1 ? "page" : "pages"} on ${niceDay(day)}`}>
+            <section
+              aria-label={`${pages.length} ${pages.length === 1 ? "page" : "pages"} on ${niceDay(day)}`}
+            >
               {/* the day's trackers, once for all its pages */}
               {pages.length > 1 && (
                 <TrackerPills
@@ -1078,9 +1091,7 @@ export function NotebookFeed({
               )}
               <ol className="space-y-6">
                 {pages.map((note) => (
-                  <li key={note.id}>
-                    {page(note, pages.length === 1)}
-                  </li>
+                  <li key={note.id}>{page(note, pages.length === 1)}</li>
                 ))}
               </ol>
             </section>

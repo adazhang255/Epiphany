@@ -1,5 +1,6 @@
 "use client"
 
+import { PILL, PILL_ON } from "@/components/buttonStyles"
 import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
@@ -70,11 +71,11 @@ function RemoveThreadButtonInner({
         onClick={() => setAsking((a) => !a)}
         aria-expanded={asking}
         title="Take this thread apart (your highlights and entries stay)"
-        className={`rounded-full border px-3 py-1 text-xs transition ${
+        className={
           asking
-            ? "border-rose-400/40 bg-rose-400/10 text-rose-200"
-            : "border-white/10 text-stone-500 hover:border-rose-400/40 hover:text-rose-300"
-        }`}
+            ? `${PILL_ON} border-rose-400/40 bg-rose-400/10 text-rose-200`
+            : PILL
+        }
       >
         Remove thread
       </button>

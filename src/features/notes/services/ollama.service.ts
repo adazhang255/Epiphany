@@ -1,5 +1,10 @@
 import { findQuote } from "@/features/notes/lib/findQuote"
 import {
+  clampPassage,
+  HIGHLIGHT_CHARS,
+  HIGHLIGHT_SENTENCES,
+} from "@/features/notes/lib/passage"
+import {
   HIGHLIGHT_CATEGORIES,
   TOPIC_NAMES,
   type TopicName,
@@ -62,11 +67,12 @@ export async function listLocalModels(): Promise<string[]> {
     .filter((name) => !name.includes("embed"))
 }
 const MAX_HIGHLIGHTS = 5
-// A highlight is 1-3 sentences; MAX_CHARS stands in for "3 sentences" when the
-// writing has little punctuation.
-const MAX_SENTENCES = 3
+// A highlight is 1-2 sentences, short enough to read whole on the
+// Highlights page; MAX_CHARS stands in for "2 sentences" when the writing
+// has little punctuation.
+const MAX_SENTENCES = HIGHLIGHT_SENTENCES
 const MIN_CHARS = 15
-const MAX_CHARS = 400
+const MAX_CHARS = HIGHLIGHT_CHARS
 
 const CATEGORIES = HIGHLIGHT_CATEGORIES
 
@@ -113,7 +119,7 @@ const analysisSchema = {
 const SYSTEM_PROMPT = `You read a personal journal entry and return JSON describing it.
 - topics: the 1 to 3 main topics it is about, chosen ONLY from: ${TOPIC_NAMES.join(", ")}.
 - highlights: 0 to ${MAX_HIGHLIGHTS} of the most meaningful passages. Fewer is better than filler. If the entry has nothing meaningful (a greeting, a test, a few stray words), return an empty list. Never invent meaning that isn't there.
-  - quote: copied VERBATIM from the entry (same words, same order, never paraphrased), 1 to 3 consecutive sentences.
+  - quote: copied VERBATIM from the entry (same words, same order, never paraphrased), 1 or 2 consecutive sentences, ideally under 30 words: the heart of the passage, not the build-up to it.
   - category: what kind of passage it is. Check Writing first:
     - Writing: anything about making creative work. Fiction or poetry (invented characters and scenes, "he"/"she" or named characters rather than the writer's own day), OR advice and notes on the craft and creative process (plot, cliffhangers, endings, pacing, dialogue, characters, ideas for stories, creativity, audiences and feedback on work). "Cliffhangers are key" is Writing.
     - Insight: an idea or lesson about life, people or the world that is not about creative work.
@@ -297,23 +303,6 @@ function cleanTopics(value: unknown): TopicName[] {
   return topics.slice(0, 3)
 }
 
-// Shorten a verbatim passage to at most MAX_SENTENCES sentences / MAX_CHARS.
-// Cutting the end off a verbatim passage keeps it verbatim.
-function clampLength(quote: string) {
-  const ends = [...quote.matchAll(/[.!?]+["”’)]*(?=\s|$)/g)].map(
-    (m) => m.index + m[0].length,
-  )
-  let cut = quote.length
-  if (ends.length > MAX_SENTENCES) {
-    cut = ends[MAX_SENTENCES - 1]
-  }
-  if (cut > MAX_CHARS) {
-    const lastSentence = ends.filter((e) => e <= MAX_CHARS).at(-1)
-    cut = lastSentence ?? quote.lastIndexOf(" ", MAX_CHARS)
-  }
-  return quote.slice(0, cut > 0 ? cut : MAX_CHARS).trim()
-}
-
 // Drop anything the model invented: a highlight must exist in the note so the
 // note page can mark it. Returns the note's own wording, not the model's.
 function keepVerbatim(content: string, highlights: unknown[]) {
@@ -329,7 +318,11 @@ function keepVerbatim(content: string, highlights: unknown[]) {
     if (!range) {
       continue
     }
-    const quote = clampLength(content.slice(range.start, range.end))
+    const quote = clampPassage(
+      content.slice(range.start, range.end),
+      MAX_SENTENCES,
+      MAX_CHARS,
+    )
     if (quote.length < MIN_CHARS || seen.has(quote)) {
       continue
     }

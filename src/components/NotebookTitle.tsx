@@ -55,6 +55,12 @@ export function NotebookTitle({
           e.preventDefault()
           save()
         }}
+        // clicking away keeps what was typed (save leaves an unchanged
+        // title as it was); Escape or Cancel don't
+        onBlur={(e) => {
+          if (saving || e.currentTarget.contains(e.relatedTarget)) return
+          save()
+        }}
         className="flex h-[30px] min-w-0 flex-1 items-center gap-2"
       >
         <input
@@ -95,7 +101,19 @@ export function NotebookTitle({
 
   return (
     <h2 className="group/title flex min-w-0 items-baseline gap-2 text-[22px] leading-[30px] text-ink">
-      <span className="truncate group-hover:underline">
+      {/* double-click it to rename it, like the ✎ */}
+      <span
+        data-notebook-title
+        className="truncate group-hover:underline"
+        onDoubleClick={
+          PUBLIC_SITE
+            ? undefined
+            : () => {
+                window.getSelection()?.removeAllRanges()
+                start()
+              }
+        }
+      >
         <EntryTitle title={title} />
       </span>
       {!PUBLIC_SITE && (

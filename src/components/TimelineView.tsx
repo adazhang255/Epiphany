@@ -1,14 +1,15 @@
 "use client"
 
+import { CHIP, CHIP_ON } from "@/components/buttonStyles"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import { useMemo } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { createContext, useContext, useMemo, useState } from "react"
 import { useTopicSearch, useToday } from "@/components/useTopicSearch"
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import type { QuestionView } from "@/components/QuestionCard"
 import { ScrollToDay } from "@/components/ScrollToDay"
 import { RemoveHighlightButton } from "@/components/RemoveHighlightButton"
-import { AddToThreadButton } from "@/components/AddToThreadButton"
+import { ThreadPicker } from "@/components/ThreadPicker"
 import { DraggableTimeline } from "@/components/DraggableTimeline"
 import { TopicSearch } from "@/components/TopicSearch"
 import { TimeRail, type RailMonth } from "@/components/TimeRail"
@@ -36,6 +37,10 @@ import { OnThisDay } from "@/components/OnThisDay"
 import { QuestionsSection } from "@/components/QuestionsSection"
 import { EntryTitle } from "@/components/EntryTitle"
 import { EntryTime } from "@/components/EntryTime"
+import { StarButton } from "@/components/StarButton"
+import { BackToTop } from "@/components/BackToTop"
+import { isAutoTitle, plainTitle } from "@/features/notes/lib/titles"
+import { shortPassage } from "@/features/notes/lib/passage"
 
 // What the timeline needs of each entry (the page loads it once; filters,
 // order and search are applied here, in the browser).
@@ -46,7 +51,13 @@ export type TimelineNoteData = {
   date: Date
   createdAt: Date
   ownCategory: string
-  quotes: { id: string; quote: string; category: string; manual: boolean }[]
+  quotes: {
+    id: string
+    quote: string
+    category: string
+    manual: boolean
+    starred: boolean
+  }[]
 }
 
 // `purposes`: the entry's category, from all its highlights (kept even when
@@ -71,7 +82,7 @@ type MonthGroup = RailMonth & {
 const hasHighlights = (note: TimelineNote) => note.quotes.length > 0
 
 // Highlights shown per note before the rest fold behind "…".
-const VISIBLE_HIGHLIGHTS = 3
+const VISIBLE_HIGHLIGHTS = 4
 
 // Notes arrive sorted by date, so consecutive runs share a month and a day.
 function groupByMonth(notes: TimelineNote[]) {
@@ -107,6 +118,35 @@ function groupByMonth(notes: TimelineNote[]) {
   return groups
 }
 
+// Choosing highlights to put in a thread together: while it's on, a click
+// on a highlight (or an entry's box, for all of its highlights) picks it
+// instead of opening it.
+type Picking = {
+  on: boolean
+  picked: Set<string>
+  toggle: (ids: string[], pick: boolean) => void
+}
+const PickingContext = createContext<Picking>({
+  on: false,
+  picked: new Set(),
+  toggle: () => {},
+})
+
+function PickMark({ picked }: { picked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition ${
+        picked
+          ? "border-ember bg-ember text-stone-950"
+          : "border-white/25 text-transparent"
+      }`}
+    >
+      ✓
+    </span>
+  )
+}
+
 function QuoteCard({
   noteId,
   quote,
@@ -114,36 +154,93 @@ function QuoteCard({
   noteId: string
   quote: TimelineNote["quotes"][number]
 }) {
+  const router = useRouter()
+  const picking = useContext(PickingContext)
+  const shown = shortPassage(quote.quote)
+  const card =
+    "flex h-full w-full flex-col rounded-xl border bg-panel p-5 pb-12 text-left transition"
+  const body = (
+    <>
+      <span className="flex items-center gap-2 pr-6">
+        {picking.on && <PickMark picked={picking.picked.has(quote.id)} />}
+        <HighlightKind category={quote.category} manual={quote.manual} />
+      </span>
+      <span
+        title={
+          shown.cut ? "Shortened: the whole of it is on its entry" : undefined
+        }
+        className="mt-3 block flex-1 font-serif text-[17px] leading-relaxed text-stone-200"
+      >
+        “{shown.text}
+        {shown.cut ? "…" : ""}”
+      </span>
+    </>
+  )
+  if (picking.on) {
+    const picked = picking.picked.has(quote.id)
+    return (
+      <li className="relative">
+        <button
+          type="button"
+          aria-pressed={picked}
+          onClick={() => picking.toggle([quote.id], !picked)}
+          className={`${card} ${
+            picked
+              ? "border-ember/60 bg-ember/[0.06]"
+              : "border-white/[0.07] hover:border-white/25"
+          }`}
+        >
+          {body}
+        </button>
+      </li>
+    )
+  }
   return (
     <li className="group/hl relative">
-      <RemoveHighlightButton id={quote.id} className="right-2 top-2" />
-      {/* sits in its own strip at the foot of the card, clear of the text */}
-      <AddToThreadButton
-        item={quote.id}
-        quiet
-        className="absolute bottom-2.5 right-3 z-10"
-      />
+      {/* a favourite? top right (stays once starred) */}
+      {!PUBLIC_SITE && (
+        <StarButton
+          highlightId={quote.id}
+          starred={quote.starred}
+          onChange={() => router.refresh()}
+          className={`absolute right-4 top-4 z-10 text-lg ${quote.starred ? "" : "opacity-0 focus:opacity-100 group-hover/hl:opacity-100 pointer-coarse:opacity-100"}`}
+        />
+      )}
+      {/* removing it: bottom right */}
+      <RemoveHighlightButton id={quote.id} className="bottom-3 right-3" />
       <Link
         href={`/notes/${noteId}?h=${quote.id}#h-${quote.id}`}
-        className="group flex h-full flex-col rounded-xl border border-white/[0.07] bg-panel p-4 pb-11 transition hover:-translate-y-0.5 hover:border-ember/40 hover:bg-white/[0.04]"
+        className={`group ${card} border-white/[0.07] hover:-translate-y-0.5 hover:border-ember/40 hover:bg-white/[0.04]`}
       >
-        <HighlightKind category={quote.category} manual={quote.manual} />
-        <p className="mt-2 line-clamp-5 flex-1 font-serif text-[16px] leading-snug text-stone-200">
-          “{quote.quote}”
-        </p>
+        {body}
       </Link>
     </li>
   )
 }
 
 function NoteEntry({ note }: { note: TimelineNote }) {
+  const picking = useContext(PickingContext)
   const shown = note.quotes.slice(0, VISIBLE_HIGHLIGHTS)
   const hidden = note.quotes.slice(VISIBLE_HIGHLIGHTS)
-  const grid = "grid gap-3 sm:grid-cols-3"
+  const grid = "grid gap-4 sm:grid-cols-2"
+  const ids = note.quotes.map((q) => q.id)
+  const all = ids.length > 0 && ids.every((id) => picking.picked.has(id))
 
   return (
     <article id={`n-${note.id}`} className="group/entry">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {picking.on && (
+          <button
+            type="button"
+            aria-pressed={all}
+            onClick={() => picking.toggle(ids, !all)}
+            title={all ? "Unpick its highlights" : "Pick all its highlights"}
+            className="flex items-center"
+          >
+            <PickMark picked={all} />
+            <span className="sr-only">All of this entry’s highlights</span>
+          </button>
+        )}
         <Link
           href={`/notes/${note.id}`}
           className="font-serif text-lg text-stone-200 hover:text-ink hover:underline"
@@ -154,12 +251,6 @@ function NoteEntry({ note }: { note: TimelineNote }) {
           <EntryTime date={note.date} createdAt={note.createdAt} />
         </span>
         <PurposeBadges purposes={note.purposes} />
-        <DeleteEntryButton
-          noteId={note.id}
-          title={note.title}
-          className="ml-auto"
-          idleClassName="opacity-0 focus:opacity-100 group-hover/entry:opacity-100 pointer-coarse:opacity-60"
-        />
       </div>
 
       <ul className={`mt-3 ${grid}`}>
@@ -167,23 +258,105 @@ function NoteEntry({ note }: { note: TimelineNote }) {
           <QuoteCard key={quote.id} noteId={note.id} quote={quote} />
         ))}
       </ul>
-      {hidden.length > 0 && (
-        <details className="group/more mt-3">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-stone-400 transition hover:border-white/25 hover:text-stone-200 [&::-webkit-details-marker]:hidden">
-            <span aria-hidden className="text-base leading-none">
-              …
-            </span>
-            <span className="group-open/more:hidden">{hidden.length} more</span>
-            <span className="hidden group-open/more:inline">Show fewer</span>
-          </summary>
-          <ul className={`mt-3 ${grid}`}>
-            {hidden.map((quote) => (
-              <QuoteCard key={quote.id} noteId={note.id} quote={quote} />
-            ))}
-          </ul>
-        </details>
-      )}
+      <div className="mt-3 flex items-center gap-3">
+        {hidden.length > 0 && (
+          <details
+            className="group/more min-w-0 flex-1"
+            open={picking.on || undefined}
+          >
+            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-white/10 px-3 py-1 font-mono text-xs text-stone-400 transition hover:border-white/25 hover:text-stone-200 [&::-webkit-details-marker]:hidden">
+              <span aria-hidden className="text-base leading-none">
+                …
+              </span>
+              <span className="group-open/more:hidden">
+                {hidden.length} more
+              </span>
+              <span className="hidden group-open/more:inline">Show fewer</span>
+            </summary>
+            <ul className={`mt-3 ${grid}`}>
+              {hidden.map((quote) => (
+                <QuoteCard key={quote.id} noteId={note.id} quote={quote} />
+              ))}
+            </ul>
+          </details>
+        )}
+        {/* deleting the entry: bottom right */}
+        {!picking.on && (
+          <DeleteEntryButton
+            noteId={note.id}
+            title={note.title}
+            className="ml-auto self-start"
+            idleClassName="opacity-0 focus:opacity-100 group-hover/entry:opacity-100 pointer-coarse:opacity-60"
+          />
+        )}
+      </div>
     </article>
+  )
+}
+
+// The bar at the foot of the screen while picking: how many, put them in a
+// thread, or stop.
+function PickBar({
+  picked,
+  onClear,
+  onDone,
+}: {
+  picked: string[]
+  onClear: () => void
+  onDone: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:pl-56">
+      <div className="relative flex items-center gap-3 rounded-full border border-white/15 bg-stone-900/95 py-1.5 pl-4 pr-1.5 text-sm shadow-xl shadow-black/50 backdrop-blur">
+        <span className="text-stone-300">
+          {picked.length === 0
+            ? "Pick highlights to thread together"
+            : `${picked.length} picked`}
+        </span>
+        {picked.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-xs text-stone-500 hover:text-stone-300"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              className="rounded-full bg-ember px-3 py-1 text-xs font-medium text-stone-950 hover:bg-[#f0d08f]"
+            >
+              ⇢ Thread them
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={onDone}
+          className="rounded-full px-3 py-1 text-xs text-stone-400 hover:bg-white/10 hover:text-stone-100"
+        >
+          Done
+        </button>
+        {open && picked.length > 0 && (
+          <div
+            role="dialog"
+            aria-label="Put them in a thread"
+            className="absolute bottom-full left-1/2 mb-2 w-80 max-w-[90vw] -translate-x-1/2 rounded-xl border border-white/15 bg-stone-900 p-2 shadow-xl shadow-black/50"
+          >
+            <ThreadPicker
+              items={picked}
+              onDone={() => {
+                setOpen(false)
+                onClear()
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -239,6 +412,25 @@ export function TimelineView({
   questions: QuestionView[]
 }) {
   const params = useSearchParams()
+  // picking highlights to thread together
+  const [pickOn, setPickOn] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const picking = useMemo<Picking>(
+    () => ({
+      on: pickOn,
+      picked,
+      toggle: (ids, pick) =>
+        setPicked((was) => {
+          const next = new Set(was)
+          for (const id of ids) {
+            if (pick) next.add(id)
+            else next.delete(id)
+          }
+          return next
+        }),
+    }),
+    [pickOn, picked],
+  )
   const order = params.get("order") ?? undefined
   const type = params.get("type") ?? undefined
   const kind = params.get("kind") ?? undefined
@@ -268,6 +460,23 @@ export function TimelineView({
     ),
   ]
   const filter = types.find((c) => c.toLowerCase() === type)
+  // only the highlights you starred
+  const starredOnly = type === "starred"
+  // only entries without a title of yours (none, or the AI's temporary one)
+  const untitledOnly = type === "untitled"
+  const untitled = (n: TimelineNote) =>
+    isAutoTitle(n.title) || !plainTitle(n.title).trim()
+  const untitledCount = allNotes.filter(untitled).length
+  // a filter of its own (not a highlight type)
+  const special = starredOnly
+    ? "starred"
+    : untitledOnly
+      ? "untitled"
+      : undefined
+  const starredCount = allNotes.reduce(
+    (n, note) => n + note.quotes.filter((q) => q.starred).length,
+    0,
+  )
   const typeCounts = Object.fromEntries(
     types.map((c) => [
       c,
@@ -290,7 +499,16 @@ export function TimelineView({
           ),
         }))
         .filter((note) => note.quotes.length > 0)
-    : allNotes
+    : starredOnly
+      ? allNotes
+          .map((note) => ({
+            ...note,
+            quotes: note.quotes.filter((q) => q.starred),
+          }))
+          .filter((note) => note.quotes.length > 0)
+      : untitledOnly
+        ? allNotes.filter(untitled)
+        : allNotes
   // Topic search: only the entries about it (by its words, or by meaning),
   // in timeline order; within each, the highlights that match by themselves,
   // or all of its highlights if none do.
@@ -311,7 +529,8 @@ export function TimelineView({
   }) => {
     const params = new URLSearchParams()
     if (next.order ?? oldestFirst) params.set("order", "oldest")
-    const t = next.type === undefined ? filter?.toLowerCase() : next.type
+    const t =
+      next.type === undefined ? (filter?.toLowerCase() ?? special) : next.type
     if (t) params.set("type", t)
     const g = next.q === undefined ? query : next.q
     if (g) params.set("q", g)
@@ -400,7 +619,7 @@ export function TimelineView({
           <p className="mt-3 text-stone-400">
             {filter === "Question"
               ? `${questionCount} questions and wonderings`
-              : `${totalHighlights} ${filter ? `${filter} ` : ""}highlights from ${notes.length} entries`}
+              : `${totalHighlights} ${filter ? `${filter} ` : starredOnly ? "starred " : ""}highlights from ${notes.length} ${untitledOnly ? "untitled " : ""}entries`}
             , since{" "}
             {oldest.toLocaleDateString("en-US", {
               month: "long",
@@ -414,7 +633,9 @@ export function TimelineView({
         </header>
 
         <ScrollToDay />
-        {!filter && today && <OnThisDay notes={allNotes} today={today} />}
+        {!filter && !special && today && (
+          <OnThisDay notes={allNotes} today={today} />
+        )}
 
         <nav
           aria-label="Show highlights of one type"
@@ -422,25 +643,42 @@ export function TimelineView({
         >
           <Link
             href={href({ type: null })}
-            aria-current={!filter ? "page" : undefined}
-            className={`rounded-full border px-3 py-1 text-sm transition ${
-              !filter
-                ? "border-white/30 bg-white/10 text-ink"
-                : "border-white/10 text-stone-400 hover:text-stone-200"
-            }`}
+            aria-current={!filter && !special ? "page" : undefined}
+            className={!filter && !special ? CHIP_ON : CHIP}
           >
             All
           </Link>
+          {!PUBLIC_SITE && (
+            <Link
+              href={href({ type: "starred" })}
+              aria-current={starredOnly ? "page" : undefined}
+              className={starredOnly ? CHIP_ON : CHIP}
+            >
+              <span aria-hidden>★</span> Starred
+              <span className="font-mono text-xs text-stone-500">
+                {starredCount}
+              </span>
+            </Link>
+          )}
+          {untitledCount > 0 && (
+            <Link
+              href={href({ type: "untitled" })}
+              aria-current={untitledOnly ? "page" : undefined}
+              title="Entries without a title of yours: none, or your AI's temporary one"
+              className={untitledOnly ? CHIP_ON : CHIP}
+            >
+              Untitled
+              <span className="font-mono text-xs text-stone-500">
+                {untitledCount}
+              </span>
+            </Link>
+          )}
           {types.map((c) => (
             <Link
               key={c}
               href={href({ type: c.toLowerCase() })}
               aria-current={filter === c ? "page" : undefined}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition ${
-                filter === c
-                  ? "border-white/30 bg-white/10 text-ink"
-                  : "border-white/10 text-stone-400 hover:text-stone-200"
-              }`}
+              className={filter === c ? CHIP_ON : CHIP}
             >
               <span
                 aria-hidden
@@ -453,6 +691,21 @@ export function TimelineView({
               </span>
             </Link>
           ))}
+          {!PUBLIC_SITE && filter !== "Question" && (
+            <button
+              type="button"
+              aria-pressed={pickOn}
+              onClick={() => {
+                setPickOn((on) => !on)
+                setPicked(new Set())
+              }}
+              title="Pick several highlights to put in a thread together"
+              className={`ml-auto ${pickOn ? CHIP_ON : CHIP}`}
+            >
+              <span aria-hidden>⇢</span>{" "}
+              {pickOn ? "Picking…" : "Thread several"}
+            </button>
+          )}
         </nav>
         {filter !== "Question" && (
           <div className="-mt-6 mb-10">
@@ -461,7 +714,7 @@ export function TimelineView({
               active={query}
               keep={{
                 order: oldestFirst ? "oldest" : undefined,
-                type: filter?.toLowerCase(),
+                type: filter?.toLowerCase() ?? special,
               }}
               clearHref={href({ q: null })}
             />
@@ -495,11 +748,13 @@ export function TimelineView({
           />
         ) : (
           <>
-            {(filter || query) && notes.length === 0 && (
+            {(filter || special || query) && notes.length === 0 && (
               <p className="mb-10 text-stone-500">
                 {query
                   ? `Nothing about “${query}”${filter ? ` among ${filter} highlights` : ""}.`
-                  : `No ${filter} highlights yet.${PUBLIC_SITE ? "" : " Select a passage on any entry to mark one."}`}
+                  : starredOnly
+                    ? "No starred highlights yet. Hover over a highlight and click its ☆ to keep it here."
+                    : `No ${filter} highlights yet.${PUBLIC_SITE ? "" : " Select a passage on any entry to mark one."}`}
               </p>
             )}
 
@@ -513,93 +768,111 @@ export function TimelineView({
                 }))}
               />
 
-              <DraggableTimeline>
-                {/* the spine: bright at the present, fading into the past */}
-                <div
-                  aria-hidden
-                  className={`absolute bottom-0 left-[7px] top-2 w-px ${
-                    oldestFirst
-                      ? "bg-linear-to-b from-stone-800 via-stone-700 to-ember/60"
-                      : "bg-linear-to-b from-ember/60 via-stone-700 to-stone-800"
-                  }`}
-                />
+              <PickingContext.Provider value={picking}>
+                <DraggableTimeline>
+                  {/* the spine: bright at the present, fading into the past */}
+                  <div
+                    aria-hidden
+                    className={`absolute bottom-0 left-[7px] top-2 w-px ${
+                      oldestFirst
+                        ? "bg-linear-to-b from-stone-800 via-stone-700 to-ember/60"
+                        : "bg-linear-to-b from-ember/60 via-stone-700 to-stone-800"
+                    }`}
+                  />
 
-                {months.map((month) => (
-                  <section
-                    key={month.key}
-                    id={`m-${month.key}`}
-                    className="relative"
-                  >
-                    <h2 className="sticky top-[7.25rem] z-10 -ml-1 mb-6 flex items-baseline gap-3 bg-linear-to-b from-[#101011] via-[#101011]/95 to-transparent pb-4 pl-8 pt-3 lg:top-0">
-                      <span className="font-serif text-3xl text-ink">
-                        {month.label}
-                      </span>
-                      <span className="font-mono text-sm text-muted">
-                        {month.year}
-                      </span>
-                      <span className="ml-auto font-mono text-xs text-stone-500">
-                        {month.entries}{" "}
-                        {month.entries === 1 ? "entry" : "entries"} ·{" "}
-                        {month.highlights} highlights
-                      </span>
-                    </h2>
+                  {months.map((month) => (
+                    <section
+                      key={month.key}
+                      id={`m-${month.key}`}
+                      className="relative"
+                    >
+                      <h2 className="sticky top-[7.25rem] z-10 -ml-1 mb-6 flex items-baseline gap-3 bg-linear-to-b from-[#101011] via-[#101011]/95 to-transparent pb-4 pl-8 pt-3 lg:top-0">
+                        <span className="font-serif text-3xl text-ink">
+                          {month.label}
+                        </span>
+                        <span className="font-mono text-sm text-muted">
+                          {month.year}
+                        </span>
+                        <span className="ml-auto font-mono text-xs text-stone-500">
+                          {month.entries}{" "}
+                          {month.entries === 1 ? "entry" : "entries"} ·{" "}
+                          {month.highlights} highlights
+                        </span>
+                      </h2>
 
-                    <ol className="space-y-2 pb-10">
-                      {month.days.map((day) => {
-                        const freshness =
-                          1 - (newest - day.date.getTime()) / span
-                        const label = `${formatDay(day.date)} ${day.date.getFullYear()}`
-                        const full = day.notes.filter(hasHighlights)
-                        const empty = day.notes.filter((n) => !hasHighlights(n))
-                        return (
-                          <li
-                            key={day.key}
-                            id={`d-${day.key}`}
-                            data-day-label={label}
-                          >
-                            <div className="relative pl-10">
-                              {/* click the dot to centre this day */}
-                              <a
-                                href={`#d-${day.key}`}
-                                data-day-dot
-                                aria-label={`Centre ${label} on the screen`}
-                                title="Centre this day"
-                                className="absolute left-0 top-[3px] h-[15px] w-[15px] rounded-full border-2 border-ember bg-[#101011] outline-none transition hover:scale-125 hover:bg-ember/30 focus-visible:ring-2 focus-visible:ring-ember/50"
-                                style={{ opacity: 0.3 + freshness * 0.7 }}
-                              />
-                              <time
-                                dateTime={day.date.toISOString()}
-                                className="font-mono text-xs uppercase tracking-widest text-stone-400"
-                              >
-                                {formatDay(day.date)}
-                                {day.notes.length > 1 && (
-                                  <span className="text-stone-600">
-                                    {" "}
-                                    · {day.notes.length} entries
+                      <ol className="space-y-2 pb-10">
+                        {month.days.map((day) => {
+                          const freshness =
+                            1 - (newest - day.date.getTime()) / span
+                          const label = `${formatDay(day.date)} ${day.date.getFullYear()}`
+                          const full = day.notes.filter(hasHighlights)
+                          const empty = day.notes.filter(
+                            (n) => !hasHighlights(n),
+                          )
+                          return (
+                            <li
+                              key={day.key}
+                              id={`d-${day.key}`}
+                              data-day-label={label}
+                            >
+                              <div className="relative pl-10">
+                                {/* click the dot to centre this day */}
+                                <a
+                                  href={`#d-${day.key}`}
+                                  data-day-dot
+                                  aria-label={`Centre ${label} on the screen`}
+                                  title="Centre this day"
+                                  className="absolute left-0 top-[3px] h-[15px] w-[15px] rounded-full border-2 border-ember bg-[#101011] outline-none transition hover:scale-125 hover:bg-ember/30 focus-visible:ring-2 focus-visible:ring-ember/50"
+                                  style={{ opacity: 0.3 + freshness * 0.7 }}
+                                />
+                                <time
+                                  dateTime={day.date.toISOString()}
+                                  className="font-mono text-xs uppercase tracking-widest text-stone-400"
+                                >
+                                  {formatDay(day.date)}
+                                  <span className="text-stone-500">
+                                    , {day.date.getFullYear()}
                                   </span>
-                                )}
-                              </time>
+                                  {day.notes.length > 1 && (
+                                    <span className="text-stone-600">
+                                      {" "}
+                                      · {day.notes.length} entries
+                                    </span>
+                                  )}
+                                </time>
 
-                              <div className="mt-3 space-y-8 pb-8">
-                                {full.map((note) => (
-                                  <NoteEntry key={note.id} note={note} />
-                                ))}
-                                {empty.length > 0 && (
-                                  <MoreNotes
-                                    notes={empty}
-                                    more={full.length > 0}
-                                  />
-                                )}
+                                <div className="mt-3 space-y-8 pb-8">
+                                  {full.map((note) => (
+                                    <NoteEntry key={note.id} note={note} />
+                                  ))}
+                                  {empty.length > 0 && (
+                                    <MoreNotes
+                                      notes={empty}
+                                      more={full.length > 0}
+                                    />
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        )
-                      })}
-                    </ol>
-                  </section>
-                ))}
-              </DraggableTimeline>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                    </section>
+                  ))}
+                </DraggableTimeline>
+              </PickingContext.Provider>
             </div>
+            <BackToTop />
+            {pickOn && (
+              <PickBar
+                picked={[...picked]}
+                onClear={() => setPicked(new Set())}
+                onDone={() => {
+                  setPickOn(false)
+                  setPicked(new Set())
+                }}
+              />
+            )}
           </>
         )}
       </div>

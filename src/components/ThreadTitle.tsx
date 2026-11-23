@@ -27,6 +27,12 @@ export function ThreadTitle({
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(known)
+  // a new name from the server (renamed or merged elsewhere) replaces it
+  const [had, setHad] = useState(known)
+  if (known !== had) {
+    setHad(known)
+    if (known) setTitle(known)
+  }
   const [failed, setFailed] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState("")
@@ -92,6 +98,17 @@ export function ThreadTitle({
           e.preventDefault()
           save(draft)
         }}
+        // clicking away: keep what was typed (or just stop, if nothing
+        // changed); Escape or Cancel leave it as it was
+        onBlur={(e) => {
+          if (saving || e.currentTarget.contains(e.relatedTarget)) return
+          const next = draft.trim()
+          if (next && next !== (title ?? "").trim()) save(next)
+          else {
+            setEditing(false)
+            setError(null)
+          }
+        }}
         className="flex flex-wrap items-center gap-2"
       >
         <input
@@ -142,7 +159,18 @@ export function ThreadTitle({
 
   return (
     <h2 className="group/title flex items-baseline gap-2 font-serif text-2xl leading-tight text-ink">
-      <span>
+      {/* double-click it to rename it, like the ✎ */}
+      <span
+        onDoubleClick={
+          thread && !PUBLIC_SITE
+            ? () => {
+                window.getSelection()?.removeAllRanges()
+                setDraft(title ?? "")
+                setEditing(true)
+              }
+            : undefined
+        }
+      >
         {title ?? (
           <span className={failed ? "" : "animate-pulse text-stone-400"}>
             {fallback}

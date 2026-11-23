@@ -94,6 +94,9 @@ for (const route of [
 ]) {
   rmSync(path.join(work, "src/app", route), { recursive: true, force: true })
 }
+// the request guard for the app on your computer (a static site has no
+// server to guard, and static export can't include one)
+rmSync(path.join(work, "src/proxy.ts"), { force: true })
 // pages are built once, not per visit
 function eachPage(dir, fn) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

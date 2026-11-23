@@ -3,6 +3,9 @@ import { ThreadsView } from "@/components/ThreadsView"
 import { getThreadsAt } from "@/features/threads/build"
 import { titleThread } from "@/features/threads/titles"
 import { PUBLIC_SITE } from "@/lib/site-mode"
+import { getStarred, THREAD_STARS } from "@/features/notes/stars"
+import { getThreadCategories } from "@/features/threads/categories"
+import { getCustomCategories } from "@/features/notes/services/notes.service"
 
 export const dynamic = "force-dynamic"
 
@@ -10,10 +13,21 @@ export const dynamic = "force-dynamic"
 // every match level here; the view picks one from ?match in the browser (so
 // the public site, built once, can switch too).
 export default async function ThreadsPage() {
-  const {
-    byLevel: { close, related, loose },
-    missing,
-  } = await getThreadsAt(["close", "related", "loose"])
+  const [
+    {
+      byLevel: { close, related, loose },
+      missing,
+    },
+    starred,
+    categories,
+    custom,
+  ] = await Promise.all([
+    getThreadsAt(["close", "related", "loose"]),
+    // threads you starred (yours: not on the public site)
+    PUBLIC_SITE ? ([] as string[]) : getStarred(THREAD_STARS),
+    getThreadCategories(),
+    PUBLIC_SITE ? ([] as string[]) : getCustomCategories(),
+  ])
   // The public site can't ask the model later, so name its threads now
   // (when Ollama is running; otherwise they show their opening words).
   if (PUBLIC_SITE) {
@@ -40,6 +54,9 @@ export default async function ThreadsPage() {
           loose: slim(loose),
         }}
         missing={missing}
+        starred={starred}
+        categories={categories}
+        custom={custom}
       />
     </Suspense>
   )

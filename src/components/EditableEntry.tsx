@@ -174,6 +174,9 @@ export function EditableEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // editing began from a double-click on the title: start in the title
+  const titleFirst = useRef(false)
+
   function start() {
     const d = loadDraft<EntryDraft>(draftKey)
     setKept(null)
@@ -451,7 +454,16 @@ export function EditableEntry({
   if (readOnly) return <>{children}</>
   if (!editing) {
     return (
-      <div className="relative">
+      // double-clicking the title starts editing, there
+      <div
+        className="relative"
+        onDoubleClick={(e) => {
+          if (!(e.target as HTMLElement).closest("[data-entry-title]")) return
+          window.getSelection()?.removeAllRanges()
+          titleFirst.current = true
+          start()
+        }}
+      >
         <button
           type="button"
           onClick={start}
@@ -518,6 +530,15 @@ export function EditableEntry({
       </div>
       <div className="grid gap-3 sm:grid-cols-[1fr_170px_130px]">
         <input
+          ref={(el) => {
+            if (!el || !titleFirst.current) return
+            titleFirst.current = false
+            // (after the editor's own focus)
+            requestAnimationFrame(() => {
+              el.focus()
+              el.select()
+            })
+          }}
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           placeholder="Title"

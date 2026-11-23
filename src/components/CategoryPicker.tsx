@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   categoryColor,
   categoryGlyph,
@@ -42,6 +42,19 @@ export function CategoryPicker({
     ),
   ]
 
+  // a new name typed, then clicked away from (or its menu closed): keep it
+  const typed = useRef({ name: "", onPick })
+  useEffect(() => {
+    typed.current = { name: adding ? name : "", onPick }
+  })
+  useEffect(
+    () => () => {
+      const clean = cleanCategoryName(typed.current.name)
+      if (clean) typed.current.onPick(clean)
+    },
+    [],
+  )
+
   function add() {
     const clean = cleanCategoryName(name)
     if (!clean) return
@@ -78,7 +91,14 @@ export function CategoryPicker({
       })}
       {allowNew &&
         (adding ? (
-          <span className="flex items-center gap-1">
+          <span
+            className="flex items-center gap-1"
+            onBlur={(e) => {
+              if (e.currentTarget.contains(e.relatedTarget)) return
+              if (cleanCategoryName(name)) add()
+              else setAdding(false)
+            }}
+          >
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}

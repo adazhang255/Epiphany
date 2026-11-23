@@ -72,26 +72,29 @@ const byIds = (ids: string[]) => ({
   },
 })
 
-// Put a passage in a thread. An automatic thread becomes one you arranged
-// (its passages keep it, so it stays together); a question's thread gets the
-// highlight as an answer. Gives the thread's id afterwards (null if it can't
-// go there).
-export async function addToThread(item: string, thread: ThreadRef) {
+// Put passages (one or several) in a thread. An automatic thread becomes
+// one you arranged (its passages keep it, so it stays together); a
+// question's thread gets the highlights as answers (a question can't be
+// one). Gives the thread's id afterwards (null if none can go there).
+export async function addToThread(items: string | string[], thread: ThreadRef) {
+  const ids = [items].flat().filter((id) => !thread.memberIds.includes(id))
+  if (ids.length === 0) return thread.id
   if (thread.kind === "qa") {
-    if (item.startsWith("q-") || !thread.questionId) return null
-    await prisma.quote.update({
-      where: { id: item },
+    const quotes = ids.filter((id) => !id.startsWith("q-"))
+    if (quotes.length === 0 || !thread.questionId) return null
+    await prisma.quote.updateMany({
+      where: { id: { in: quotes } },
       data: { replyToId: thread.questionId },
     })
     return thread.id
   }
   if (thread.kind === "pinned") {
     // join under the same id (and name, if it has one)
-    await setThread([item], await storedField(thread.id))
+    await setThread(ids, await storedField(thread.id))
     return thread.id
   }
   const id = `t-${randomUUID()}`
-  await setThread([...thread.memberIds, item], id)
+  await setThread([...thread.memberIds, ...ids], id)
   return id
 }
 
@@ -182,19 +185,35 @@ export async function removeThread(thread: ThreadRef) {
   return restore
 }
 
-// Start a thread of your own from one passage, named `name`. Gives the new
-// thread's id. (A passage that was in another thread of yours moves.)
-export async function startThread(item: string, name: string) {
+// Keep a thread as it is: an automatic one becomes one you arranged, so its
+// passages stay together under an id that lasts (e.g. to star it). Gives
+// that id (a thread you arranged, or a question's, keeps its own).
+export async function keepThread(thread: ThreadRef) {
+  if (thread.kind !== "auto") return thread.id
   const id = `t-${randomUUID()}`
-  await setThread([item], threadField(id, name))
+  await setThread(thread.memberIds, id)
+  return id
+}
+
+// Start a thread of your own from passages (one or several), named
+// `name`. Gives the new thread's id. (A passage that was in another thread
+// of yours moves.)
+export async function startThread(items: string | string[], name: string) {
+  const id = `t-${randomUUID()}`
+  await setThread([items].flat(), threadField(id, name))
   return id
 }
 
 // Merge thread `from` into thread `into` (neither a question's thread): one
-// thread of yours with every passage of both. It keeps `into`'s name, or
-// `from`'s if `into` has none. Gives the merged thread's id and a way to put
-// both back as they were (null if they can't be merged).
-export async function mergeThreads(from: ThreadRef, into: ThreadRef) {
+// thread of yours with every passage of both. Named `name` if given;
+// otherwise it keeps `into`'s name, or `from`'s if `into` has none. Gives
+// the merged thread's id and a way to put both back as they were (null if
+// they can't be merged).
+export async function mergeThreads(
+  from: ThreadRef,
+  into: ThreadRef,
+  chosen?: string | null,
+) {
   if (from.kind === "qa" || into.kind === "qa" || from.id === into.id)
     return null
   const pinnedIds = [from, into]
@@ -215,7 +234,7 @@ export async function mergeThreads(from: ThreadRef, into: ThreadRef) {
     const parsed = parseThread(await storedField(t.id))
     return parsed.kind === "pinned" ? parsed.name : null
   }
-  const name = (await nameOf(into)) ?? (await nameOf(from))
+  const name = chosen || (await nameOf(into)) || (await nameOf(from))
   const id =
     into.kind === "pinned"
       ? into.id

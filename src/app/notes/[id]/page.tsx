@@ -30,6 +30,7 @@ import {
 import { isAnalysisPending } from "@/features/notes/services/analysis-queue"
 import { EntryTitle } from "@/components/EntryTitle"
 import { StarButton } from "@/components/StarButton"
+import { BackLink } from "@/components/BackLink"
 import { PUBLIC_SITE } from "@/lib/site-mode"
 import { getStarred } from "@/features/notes/stars"
 import { ExportDocsButton } from "@/components/ExportDocsButton"
@@ -88,12 +89,7 @@ export default async function NotePage({
       <div className="pt-10">
         <EntryArrival highlights={note.quotes.length} pending={pending} />
 
-        <Link
-          href={`/#n-${note.id}`}
-          className="font-mono text-xs uppercase tracking-widest text-stone-500 hover:text-stone-200"
-        >
-          ← Back to timeline
-        </Link>
+        <BackLink noteId={note.id} />
 
         <div className="mt-8 grid gap-12 lg:grid-cols-[1fr_260px]">
           <article>
@@ -128,14 +124,18 @@ export default async function NotePage({
                 · {describeAgo(note.date)}
               </p>
               <div className="mt-3 flex items-start gap-3">
-                <h1 className="min-w-0 font-serif text-4xl leading-tight text-ink sm:text-5xl">
+                <h1
+                  data-entry-title
+                  title={PUBLIC_SITE ? undefined : "Double-click to rename"}
+                  className="min-w-0 font-serif text-4xl leading-tight text-ink sm:text-5xl"
+                >
                   <EntryTitle title={note.title} />
                 </h1>
                 {!PUBLIC_SITE && (
                   <StarButton
                     noteId={note.id}
                     starred={starred.includes(note.id)}
-                    className="mt-1 shrink-0 text-3xl sm:mt-2"
+                    className="ml-auto mt-1 shrink-0 text-3xl sm:mt-2"
                   />
                 )}
               </div>

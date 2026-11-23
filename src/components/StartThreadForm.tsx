@@ -2,22 +2,48 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
-// Start a new thread from one highlight: name it, and the highlight is its
-// first passage. Then a link to it on the Threads page.
+// Start a new thread from highlights: name it, and they're its first
+// passages. Then a link to it on the Threads page.
 export function StartThreadForm({
-  item,
+  items,
   autoFocus = false,
+  onStarted,
 }: {
-  item: string // a highlight's id, or "q-" + a question's
+  items: string[] // highlights' ids, or "q-" + a question's
   autoFocus?: boolean
+  onStarted?: (thread: string) => void
 }) {
   const router = useRouter()
   const [name, setName] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [started, setStarted] = useState<string | null>(null)
+
+  // Closed (clicked away) with a name typed but not started: start it
+  // anyway, so what you typed isn't lost
+  const pending = useRef({ name: "", items, done: false })
+  useEffect(() => {
+    pending.current = { name, items, done: Boolean(started) || busy }
+  })
+  useEffect(
+    () => () => {
+      const { name, items, done } = pending.current
+      if (done || !name.trim()) return
+      fetch("/api/threads/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, name }),
+        keepalive: true,
+      })
+        .then((res) => res.ok && router.refresh())
+        .catch(() => null)
+    },
+    // only when it goes away
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
   async function start() {
     if (!name.trim() || busy) return
@@ -26,13 +52,14 @@ export function StartThreadForm({
     const res = await fetch("/api/threads/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item, name }),
+      body: JSON.stringify({ items, name }),
     }).catch(() => null)
     const data = await res?.json().catch(() => null)
     setBusy(false)
     if (!res?.ok) return setError(data?.error ?? "Couldn't start it.")
     setStarted(data.thread)
     router.refresh()
+    onStarted?.(data.thread)
   }
 
   if (started)

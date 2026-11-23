@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { HOLD_Y } from "@/components/DraggableTimeline"
+import { quickScroll, quickScrollTo } from "@/lib/quickScroll"
 
 // Arriving at a day on the timeline (e.g. from a square on Stats, /#d-…),
 // centre it on the screen and outline it for a moment so it's easy to spot.
@@ -21,13 +22,10 @@ export function ScrollToDay() {
           // once the scroll stops, the walker sees the dot in reach and holds it
           const r = dot.getBoundingClientRect()
           const hands = window.innerHeight / 2 + HOLD_Y
-          window.scrollBy({
-            top: r.top + r.height / 2 - hands,
-            behavior: "smooth",
-          })
+          quickScroll(window.scrollY + r.top + r.height / 2 - hands)
           return // the walker holding it is marker enough; no outline
         }
-        day.scrollIntoView({ behavior: "smooth", block: "center" })
+        quickScrollTo(day, "center")
         day.classList.remove("jump-target")
         void day.offsetWidth // restart the glow if it's already there
         day.classList.add("jump-target")
@@ -37,8 +35,21 @@ export function ScrollToDay() {
     go()
     const onHash = () => go()
     // a day's dot: hand it to the walker (even if it's the day already in
-    // the address)
+    // the address); a month in the list beside: go to it quickly
     const onClick = (e: MouseEvent) => {
+      const month = (e.target as HTMLElement).closest<HTMLAnchorElement>(
+        'a[href^="#m-"]',
+      )
+      if (month) {
+        const target = document.getElementById(
+          month.getAttribute("href")!.slice(1),
+        )
+        if (!target) return
+        e.preventDefault()
+        history.replaceState(null, "", month.getAttribute("href"))
+        quickScrollTo(target)
+        return
+      }
       const dot = (e.target as HTMLElement).closest<HTMLAnchorElement>(
         "a[data-day-dot]",
       )
