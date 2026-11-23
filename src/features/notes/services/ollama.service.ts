@@ -340,7 +340,7 @@ function keepVerbatim(content: string, highlights: unknown[]) {
   return kept.slice(0, MAX_HIGHLIGHTS)
 }
 
-// Model for conversation (Ask your journal): OLLAMA_ASK_MODEL, else the
+// Model for conversation (Ask journal): OLLAMA_ASK_MODEL, else the
 // better small conversational model if installed, else the default.
 export async function pickAskModel() {
   const installed = await listLocalModels()

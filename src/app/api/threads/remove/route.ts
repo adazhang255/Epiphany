@@ -13,8 +13,8 @@ export async function POST(req: Request) {
       { status: 400 },
     )
   }
-  const restore = await removeFromThread(item, thread)
-  if (!restore) {
+  const removed = await removeFromThread(item, thread)
+  if (!removed) {
     return Response.json(
       { error: "That one stays in this thread" },
       { status: 400 },
@@ -23,6 +23,8 @@ export async function POST(req: Request) {
   revalidatePath("/threads")
   return Response.json({
     ok: true,
-    undo: offerUndo("Removed from the thread", restore),
+    // the thread's id now (an automatic one becomes yours)
+    thread: removed.thread,
+    undo: offerUndo("Removed from the thread", removed.restore),
   })
 }

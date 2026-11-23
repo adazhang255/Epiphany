@@ -27,7 +27,7 @@ model Note {
   published   Boolean    @default(false)
   // Overall tone from the local model: -2 (very negative) to 2 (very positive)
   sentiment   Int?
-  // JSON number[] embedding of the whole entry, for "Ask your journal"
+  // JSON number[] embedding of the whole entry, for "Ask journal"
   embedding   String?
   // Where an imported entry came from, e.g. "Google Doc: Journal 2025"
   source      String     @default("")

@@ -16,6 +16,7 @@ import { SAVE_BUTTON } from "@/components/SaveCancel"
 import { AnalysisIndicator } from "@/components/AnalysisIndicator"
 import { ChartJobsIndicator } from "@/components/ChartJobsIndicator"
 import { ThreadsGrew } from "@/components/ThreadsGrew"
+import { ReviewReady } from "@/components/ReviewReady"
 
 // Places to read and explore; each has its own tabs inside.
 const sections = [
@@ -120,6 +121,7 @@ function SectionIcon({
 // screens, and in the menu on narrower ones.
 function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const readOnly = usePublicView()
   const list = sections
   return (
     <nav aria-label="Sections" className="space-y-4">
@@ -142,6 +144,7 @@ function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
               <SectionIcon section={section} />
               {section.label}
               {section.href === "/threads" && <ThreadsGrew />}
+              {section.href === "/stats" && <ReviewReady />}
             </Link>
             {section.tabs.length > 1 && (
               <ul className="ml-[1.05rem] mt-1 space-y-0.5 border-l border-white/10 pl-3">
@@ -169,6 +172,34 @@ function SectionLinks({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )
       })}
+      {!readOnly && (
+        <Link
+          href="/ask"
+          onClick={onNavigate}
+          aria-current={pathname.startsWith("/ask") ? "page" : undefined}
+          className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[15px] font-medium transition pointer-coarse:py-2.5 ${
+            pathname.startsWith("/ask")
+              ? "bg-white/10 text-ink"
+              : "text-stone-400 hover:bg-white/5 hover:text-ink"
+          }`}
+        >
+          {/* a speech bubble */}
+          <svg
+            aria-hidden
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" />
+          </svg>
+          Ask journal
+        </Link>
+      )}
     </nav>
   )
 }

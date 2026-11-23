@@ -20,7 +20,7 @@ export function BackToTop() {
       aria-label="Back to top"
       title="Back to top"
       tabIndex={shown ? 0 : -1}
-      className={`fixed bottom-20 right-6 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-stone-900/90 text-stone-300 shadow-lg shadow-black/40 backdrop-blur transition hover:border-ember/50 hover:text-ember ${
+      className={`fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-stone-900/90 text-stone-300 shadow-lg shadow-black/40 backdrop-blur transition hover:border-ember/50 hover:text-ember ${
         shown ? "opacity-100" : "pointer-events-none translate-y-2 opacity-0"
       }`}
     >

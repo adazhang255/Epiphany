@@ -1,5 +1,6 @@
 "use client"
 
+import { PlusIcon } from "@/components/icons"
 import { PILL } from "@/components/buttonStyles"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
@@ -82,7 +83,7 @@ function AddHighlightToThreadInner({ thread }: { thread: ThreadRef }) {
         aria-expanded={open}
         className={PILL}
       >
-        + Add a highlight
+        <PlusIcon /> Add a highlight
       </button>
       {open && (
         <span

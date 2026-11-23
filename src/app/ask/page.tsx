@@ -5,7 +5,7 @@ export default function AskPage() {
     <div className="mx-auto max-w-3xl pt-12">
       <header className="mb-8">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
-          Ask your journal
+          Ask journal
         </p>
         <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">
           Talk it through

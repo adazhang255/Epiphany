@@ -97,7 +97,7 @@ export async function saveAnalysis(
   noteId: string,
   analysis: {
     sentiment: number | null
-    // embedding of the whole entry, for Ask your journal
+    // embedding of the whole entry, for Ask journal
     noteEmbedding?: number[]
     topics: string[]
     tags: string[]

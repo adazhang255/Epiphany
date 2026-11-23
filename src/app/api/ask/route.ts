@@ -82,7 +82,7 @@ function sourceBlock(
     .join("\n\n---\n\n")
 }
 
-// Ask your journal: find related entries, then stream an answer from the
+// Ask journal: find related entries, then stream an answer from the
 // local model. Streams newline-delimited JSON:
 //   {"status":"reading"|"thinking"|"proposing"} whenever the stage changes,
 //   {"sources":[…]}  then  {"t":"text"}…  then  {"done":true}  (or {"error":…})

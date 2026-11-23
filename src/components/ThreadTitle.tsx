@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
 import { shareThreadTitle } from "@/components/threadTitles"
+import { holdOrder } from "@/components/threadOrder"
 
 // A thread's title: the name you gave it, or one the local model writes
 // (shown as a placeholder until it's ready). ✎ renames it.
@@ -33,7 +34,6 @@ export function ThreadTitle({
     setHad(known)
     if (known) setTitle(known)
   }
-  const [failed, setFailed] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState("")
   const [saving, setSaving] = useState(false)
@@ -51,9 +51,9 @@ export function ThreadTitle({
         if (d?.title) {
           setTitle(d.title)
           if (shareAs) shareThreadTitle(shareAs, d.title)
-        } else setFailed(true)
+        }
       })
-      .catch(() => alive && setFailed(true))
+      .catch(() => {}) // stays untitled: its opening words
     return () => {
       alive = false
     }
@@ -83,6 +83,9 @@ export function ThreadTitle({
       )
       return
     }
+    // keep the page's order as it is (the thread may have a new id now)
+    const data = await res.json().catch(() => null)
+    holdOrder(thread.id, data?.thread)
     if (name.trim()) {
       setTitle(name.trim())
       if (shareAs) shareThreadTitle(shareAs, name.trim())
@@ -171,11 +174,9 @@ export function ThreadTitle({
             : undefined
         }
       >
-        {title ?? (
-          <span className={failed ? "" : "animate-pulse text-stone-400"}>
-            {fallback}
-          </span>
-        )}
+        {/* two looks only: titled, or untitled (its opening words, grey,
+            whether or not the model is still naming it) */}
+        {title ?? <span className="text-stone-400">{fallback}</span>}
       </span>
       {thread && !PUBLIC_SITE && (
         <button

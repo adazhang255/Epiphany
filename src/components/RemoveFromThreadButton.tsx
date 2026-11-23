@@ -5,6 +5,7 @@ import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import type { ThreadRef } from "@/features/threads/membership"
+import { holdOrder } from "@/components/threadOrder"
 
 // "×" on a passage in a thread: take it out, after asking if you're sure.
 // For a question's thread the answer is unlinked from the question; for
@@ -56,6 +57,8 @@ function RemoveFromThreadButtonInner({
       return
     }
     const data = await res.json().catch(() => null)
+    // keep the page's order as it is (the thread may have a new id now)
+    holdOrder(thread.id, data?.thread)
     showUndo({ label: "Removed from the thread", token: data?.undo })
     setAsking(false)
     router.refresh()

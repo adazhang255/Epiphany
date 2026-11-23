@@ -25,7 +25,7 @@ Everything AI-made is done by [Ollama](https://ollama.com) running on this compu
 - **Temporary titles:** [title-queue.ts](src/features/notes/services/title-queue.ts).
 - **Embeddings:** how similar passages are, used for threads, search by meaning and Ask. See [embeddings.service.ts](src/features/notes/services/embeddings.service.ts).
 - **Thread names:** [threads/titles.ts](src/features/threads/titles.ts).
-- **Ask your journal:** [api/ask/route.ts](src/app/api/ask/route.ts).
+- **Ask journal:** [api/ask/route.ts](src/app/api/ask/route.ts).
 - **Chart suggestions:** [askChart.ts](src/features/insights/askChart.ts), [trackers.ts](src/features/trackers/trackers.ts).
 - **Cleaning up imports:** [import/ingest.ts](src/features/import/ingest.ts).
 - **Your profile:** [profile.ts](src/features/profile/profile.ts).

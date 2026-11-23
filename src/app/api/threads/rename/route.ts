@@ -10,12 +10,14 @@ export async function POST(req: Request) {
   if (!thread?.id || !Array.isArray(thread.memberIds)) {
     return Response.json({ error: "Say which thread" }, { status: 400 })
   }
-  if (!(await renameThread(thread, cleanThreadName(body?.name)))) {
+  const id = await renameThread(thread, cleanThreadName(body?.name))
+  if (!id) {
     return Response.json(
       { error: "A question's thread is titled by its question" },
       { status: 400 },
     )
   }
   revalidatePath("/threads")
-  return Response.json({ ok: true })
+  // the thread's id now (an automatic one becomes yours)
+  return Response.json({ ok: true, thread: id })
 }

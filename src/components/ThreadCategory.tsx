@@ -1,5 +1,6 @@
 "use client"
 
+import { TagIcon } from "@/components/icons"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { CategoryPicker } from "@/components/CategoryPicker"
@@ -73,7 +74,13 @@ export function ThreadCategory({
         }
         className={open ? PILL_ON : PILL}
       >
-        {category ? <Kind category={category} /> : "+ Category"}
+        {category ? (
+          <Kind category={category} />
+        ) : (
+          <>
+            <TagIcon /> Category
+          </>
+        )}
       </button>
       {open && (
         <span

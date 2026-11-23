@@ -2,7 +2,6 @@ import { UndoToast } from "@/components/UndoToast"
 import type { Metadata, Viewport } from "next"
 import { Fraunces, Space_Mono, Work_Sans } from "next/font/google"
 import { SiteHeader, TopTools } from "@/components/SiteHeader"
-import { AskBubble } from "@/components/AskBubble"
 import "./globals.css"
 import { SITE_AUTHOR, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site-mode"
 
@@ -61,7 +60,6 @@ export default function RootLayout({
             {SITE_AUTHOR ? `Written by ${SITE_AUTHOR} · ` : ""}Just think.
           </footer>
         </div>
-        <AskBubble />
         <UndoToast />
       </body>
     </html>

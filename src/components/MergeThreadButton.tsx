@@ -1,5 +1,6 @@
 "use client"
 
+import { MergeIcon } from "@/components/icons"
 import { PILL, PILL_ON } from "@/components/buttonStyles"
 import { usePublicView } from "@/components/usePublicView"
 import { useRouter } from "next/navigation"
@@ -33,11 +34,14 @@ function Option({
   onPick: () => void
 }) {
   const title = useShownTitle(option)
+  const untitled = title === option.fallback
   return (
     <button
       type="button"
       onClick={onPick}
-      className="flex w-full items-baseline gap-2 rounded px-1.5 py-1.5 text-left text-stone-200 hover:bg-white/10"
+      className={`flex w-full items-baseline gap-2 rounded px-1.5 py-1.5 text-left hover:bg-white/10 ${
+        untitled ? "text-stone-400" : "text-stone-200"
+      }`}
     >
       <span className="min-w-0 flex-1 font-serif text-sm leading-snug">
         {title}
@@ -243,7 +247,7 @@ function MergeThreadButtonInner({
         title="Merge this thread with another"
         className={open ? PILL_ON : PILL}
       >
-        Merge…
+        <MergeIcon /> Merge…
       </button>
       {open && (
         <span

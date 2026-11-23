@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { JumpIcon } from "@/components/icons"
 import { useThreadTitle } from "@/components/threadTitles"
+import { useEffect, useRef, useState } from "react"
 
 export type TopicItem = {
   id: string
@@ -10,15 +11,7 @@ export type TopicItem = {
   count: number
 }
 
-function Topic({
-  topic,
-  current,
-  onPick,
-}: {
-  topic: TopicItem
-  current: boolean
-  onPick: () => void
-}) {
+function Topic({ topic, onPick }: { topic: TopicItem; onPick: () => void }) {
   // a title the model writes after the page opened shows here too
   const shared = useThreadTitle(topic.id)
   const title = topic.title ?? shared
@@ -27,16 +20,11 @@ function Topic({
       <a
         href={`#thread-${topic.id}`}
         onClick={onPick}
-        aria-current={current ? "true" : undefined}
-        data-topic={topic.id}
-        className={`flex max-w-[16rem] items-center gap-2 rounded-full border px-3 py-1 text-sm transition ${
-          current
-            ? "border-ember/70 bg-ember/10 text-ink"
-            : "border-white/10 hover:border-ember/50 hover:text-ink"
-        }`}
+        className="flex max-w-[16rem] items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-sm transition hover:border-white/25"
       >
+        {/* the same two looks as the thread itself: titled, or untitled */}
         <span
-          className={`truncate ${current || title ? "text-stone-100" : "text-stone-500"}`}
+          className={`truncate ${title ? "text-stone-100" : "text-stone-400"}`}
         >
           {title ?? topic.fallback}
         </span>
@@ -48,102 +36,62 @@ function Topic({
   )
 }
 
-// Every thread's topic, in a bar that stays at the top of the page as you
-// read: one row you can scroll sideways, the thread you're reading lit up
-// (and kept in view); "All" opens the whole list, in a box of its own.
-// Click one to jump to it.
+// "Threads ▾" in the filter row: every thread shown, by name, in a box that
+// opens under the row. Click one to jump to it.
 export function ThreadTopics({ topics }: { topics: TopicItem[] }) {
   const [open, setOpen] = useState(false)
-  const [current, setCurrent] = useState<string | null>(null)
-  const row = useRef<HTMLUListElement>(null)
-  const ids = topics.map((t) => t.id).join(",")
+  const anchor = useRef<HTMLSpanElement>(null)
 
-  // the thread you're reading: the topmost one on screen, below the bar
   useEffect(() => {
-    const seen = new Map<string, boolean>()
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries)
-          seen.set((e.target as HTMLElement).dataset.thread!, e.isIntersecting)
-        const first = [
-          ...document.querySelectorAll<HTMLElement>("[data-thread]"),
-        ]
-          .map((el) => el.dataset.thread!)
-          .find((id) => seen.get(id))
-        if (first) setCurrent(first)
-      },
-      { rootMargin: "-140px 0px -45% 0px" },
-    )
-    document
-      .querySelectorAll("[data-thread]")
-      .forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [ids])
-
-  // keep it in view in the row
-  useEffect(() => {
-    const chip = row.current?.querySelector<HTMLElement>(
-      `[data-topic="${current}"]`,
-    )
-    const box = row.current
-    if (!chip || !box || open) return
-    const left = chip.offsetLeft - box.clientWidth / 2 + chip.clientWidth / 2
-    box.scrollTo({ left, behavior: "smooth" })
-  }, [current, open])
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!anchor.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false)
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
 
   if (topics.length === 0) return null
   return (
-    <nav
-      aria-label="Thread topics"
-      className="sticky top-14 z-20 -mx-4 mb-8 border-b border-white/5 bg-paper/90 px-4 py-2.5 backdrop-blur-xl sm:top-16 sm:-mx-6 sm:px-6 lg:top-0"
-    >
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="shrink-0 rounded-full bg-white/10 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-stone-200 transition hover:bg-white/15"
-        >
-          {open ? "Close ▴" : `All ${topics.length} ▾`}
-        </button>
-        <ul
-          ref={row}
-          className={
-            open
-              ? "hidden"
-              : "flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          }
-        >
-          {topics.map((t) => (
-            <Topic
-              key={t.id}
-              topic={t}
-              current={t.id === current}
-              onPick={() => setCurrent(t.id)}
-            />
-          ))}
-        </ul>
-        {open && (
-          <span className="font-mono text-[11px] uppercase tracking-widest text-stone-500">
-            {topics.length} {topics.length === 1 ? "thread" : "threads"}
-          </span>
-        )}
-      </div>
+    // (the box is placed against the filter row, which is `relative`)
+    <span ref={anchor} className="ml-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title="Jump to a thread"
+        // not a filter: a square-cornered, filled button at the far end of
+        // the row, so it doesn't read as one more filter chip
+        className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm transition ${
+          open
+            ? "border-white/30 bg-white/15 text-ink"
+            : "border-white/15 bg-white/[0.07] text-stone-200 hover:border-white/30 hover:text-ink"
+        }`}
+      >
+        <JumpIcon />
+        Go to a thread
+        <span className="font-mono text-xs text-stone-500">
+          {topics.length}
+        </span>
+        <span aria-hidden className="text-xs text-stone-400">
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
       {open && (
-        <ul className="mt-3 flex max-h-[50vh] flex-wrap gap-2 overflow-y-auto pb-1">
+        <ul
+          aria-label="Threads"
+          className="absolute left-0 right-0 top-full z-30 mt-2 flex max-h-[50vh] flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/15 bg-stone-900 p-3 shadow-xl shadow-black/50"
+        >
           {topics.map((t) => (
-            <Topic
-              key={t.id}
-              topic={t}
-              current={t.id === current}
-              onPick={() => {
-                setCurrent(t.id)
-                setOpen(false)
-              }}
-            />
+            <Topic key={t.id} topic={t} onPick={() => setOpen(false)} />
           ))}
         </ul>
       )}
-    </nav>
+    </span>
   )
 }

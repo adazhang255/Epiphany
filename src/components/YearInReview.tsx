@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { markReviewSeen, reviewWaiting } from "@/components/reviewSeen"
 import type { YearReview } from "@/features/insights/yearReview"
 import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
 
@@ -9,6 +10,16 @@ import { categoryColor, categoryGlyph } from "@/features/notes/lib/topics"
 export function YearInReview({ years }: { years: YearReview[] }) {
   const [year, setYear] = useState(years[0]?.year)
   const y = years.find((r) => r.year === year)
+  // this year's review, the first time you see it: marked new (and the
+  // nav's "ready" clears)
+  const thisYear = years[0]?.year === new Date().getFullYear()
+  const [fresh, setFresh] = useState(false)
+  useEffect(() => {
+    if (!thisYear) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads browser storage, which the server can't
+    setFresh(reviewWaiting())
+    markReviewSeen()
+  }, [thisYear])
   if (!y) return null
   const tile = "rounded-xl border border-white/[0.07] p-4"
   const label = "text-xs text-stone-500"
@@ -20,6 +31,11 @@ export function YearInReview({ years }: { years: YearReview[] }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 id="year-review-title" className="font-serif text-xl text-ink">
           {y.year} in review
+          {fresh && y.year === new Date().getFullYear() && (
+            <span className="ml-2 rounded-full bg-ember/15 px-2 py-0.5 align-middle font-mono text-[10px] uppercase tracking-widest text-ember">
+              New
+            </span>
+          )}
         </h2>
         {years.length > 1 && (
           <div className="flex gap-1">

@@ -23,6 +23,30 @@ import {
 } from "@/features/threads/match"
 export { MATCH, type MatchLevel, type ThreadView }
 
+// A thread's latest passage: by its entry's date, then by its id (so
+// passages from the same entry or day always come out the same way).
+function latest(t: Pick<ThreadView, "members">) {
+  return t.members.reduce((a, b) =>
+    b.date.getTime() > a.date.getTime() ||
+    (b.date.getTime() === a.date.getTime() && b.id > a.id)
+      ? b
+      : a,
+  )
+}
+
+// Most recently continued thread first. Depends only on the passages, never
+// on the thread's kind, name or place in the list.
+export function byLatest(
+  a: Pick<ThreadView, "members">,
+  b: Pick<ThreadView, "members">,
+) {
+  const [x, y] = [latest(a), latest(b)]
+  return (
+    y.date.getTime() - x.date.getTime() ||
+    (y.id > x.id ? 1 : y.id < x.id ? -1 : 0)
+  )
+}
+
 export async function getThreads(level: MatchLevel = "related") {
   const { byLevel, missing } = await getThreadsAt([level])
   return { threads: byLevel[level], missing }
@@ -119,9 +143,8 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
   // the same at every level: threads you arranged, and questions' answers
   const arranged: ThreadView[] = [
     ...[...pinned]
-      // (one you named shows from its first passage, so a thread you just
-      // started is there to add to)
-      .filter(([id, members]) => members.length >= 2 || names.has(id))
+      // (shown from its first passage: a thread you just started is there
+      // to add to, and taking passages out never makes one disappear)
       .map(([id, members]) => {
         const t: Thread = {
           id,
@@ -167,11 +190,11 @@ export async function getThreadsAt<L extends MatchLevel>(levels: L[]) {
         named: false,
       })),
     ]
-    // most recently continued first
-    threads.sort(
-      (a, b) =>
-        b.members.at(-1)!.date.getTime() - a.members.at(-1)!.date.getTime(),
-    )
+    // most recently continued first: by the date of its latest entry. Ties
+    // (threads ending on the same entry or day) go by the latest passage's
+    // own id, not by kind or list order, so naming, starring or
+    // categorising a thread never moves it.
+    threads.sort(byLatest)
     byLevel[level] = threads
   }
   return {

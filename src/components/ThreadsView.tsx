@@ -11,6 +11,13 @@ import { RemoveFromThreadButton } from "@/components/RemoveFromThreadButton"
 import { AddHighlightToThread } from "@/components/AddHighlightToThread"
 import { AddThoughtToThread } from "@/components/AddThoughtToThread"
 import { RemoveThreadButton } from "@/components/RemoveThreadButton"
+import {
+  currentId,
+  inHeldOrder,
+  noteShownOrder,
+  releaseOrder,
+  useHeldOrder,
+} from "@/components/threadOrder"
 import { NewThread } from "@/components/NewThread"
 import { ThreadTopics } from "@/components/ThreadTopics"
 import { MergeThreadButton } from "@/components/MergeThreadButton"
@@ -94,11 +101,13 @@ export function ThreadsView({
     [all, since],
   )
   // finding a thread: by its title, its passages' words or their entries'
-  // titles; or only the ones you named
+  // titles
   const [q, setQ] = useState("")
-  const [onlyNamed, setOnlyNamed] = useState(false)
-  // only the ones you haven't named yet
-  const [onlyUntitled, setOnlyUntitled] = useState(false)
+  // only the untitled ones: no title yet, from you or the model (the grey
+  // ones). Taken when you tick it, so one that gets a title while you look
+  // stays in the list (now white) rather than vanishing.
+  const [untitledIds, setUntitledIds] = useState<Set<string> | null>(null)
+  const onlyUntitled = untitledIds !== null
   const [onlyStarred, setOnlyStarred] = useState(false)
   const isStarred = (t: ThreadView) => starred.includes(t.id)
   // showing only threads of one category
@@ -107,10 +116,35 @@ export function ThreadsView({
     categories[t.id] ? highlightType(categories[t.id]) : null
   const kinds = [...new Set(all.map(kindOf).filter((k): k is string => !!k))]
   const shared = useThreadTitles()
+  const hasTitle = (t: ThreadView) => Boolean(t.title ?? shared.get(t.id))
+  const setOnlyUntitled = (on: boolean) =>
+    setUntitledIds(
+      on ? new Set(all.filter((t) => !hasTitle(t)).map((t) => t.id)) : null,
+    )
+  // switching how-similar shows other threads: take the list again
+  const [untitledLevel, setUntitledLevel] = useState(level)
+  if (level !== untitledLevel) {
+    setUntitledLevel(level)
+    if (untitledIds) setOnlyUntitled(true)
+  }
   const words = foldText(q).split(/\s+/).filter(Boolean)
-  const threads = all.filter((t) => {
-    if (onlyNamed && !t.named) return false
-    if (onlyUntitled && t.named) return false
+  // starred threads on top; within each group, most recently continued
+  // first (the order they come in; sort keeps it)
+  const starredFirst = (a: ThreadView, b: ThreadView) =>
+    Number(isStarred(b)) - Number(isStarred(a))
+  // after a change on this page (renaming, taking a passage out), the
+  // order you were looking at holds (see threadOrder)
+  const heldOrder = useHeldOrder()
+  // (held without the stars, so starring or unstarring still moves one)
+  const byDate = inHeldOrder(all, heldOrder)
+  const ordered = byDate.toSorted(starredFirst)
+  useEffect(() => noteShownOrder(byDate.map((t) => t.id)))
+  useEffect(() => () => releaseOrder(), [level])
+  // (one you name while looking stays, even under the new id it gets)
+  const untitledNow =
+    untitledIds && new Set([...untitledIds].map((id) => currentId(id)))
+  const threads = ordered.filter((t) => {
+    if (untitledNow && !untitledNow.has(t.id)) return false
     if (onlyStarred && !isStarred(t)) return false
     if (kind && kindOf(t) !== kind) return false
     if (words.length === 0) return true
@@ -123,11 +157,7 @@ export function ThreadsView({
     return words.every((w) => text.includes(w))
   })
   const filtering =
-    words.length > 0 ||
-    onlyNamed ||
-    onlyUntitled ||
-    onlyStarred ||
-    kind !== null
+    words.length > 0 || onlyUntitled || onlyStarred || kind !== null
 
   return (
     <div>
@@ -167,7 +197,7 @@ export function ThreadsView({
           <EmbedMissingButton count={missing} />
         </div>
         {all.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="mb-6 space-y-3">
             <input
               type="search"
               value={q}
@@ -176,98 +206,99 @@ export function ThreadsView({
               aria-label="Find a thread by its words"
               className="w-full max-w-xs rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm text-stone-100 outline-none placeholder:text-stone-500 focus:border-white/30"
             />
-            <label className="flex items-center gap-2 text-sm text-stone-300">
-              <input
-                type="checkbox"
-                checked={onlyNamed}
-                onChange={(e) => {
-                  setOnlyNamed(e.target.checked)
-                  if (e.target.checked) setOnlyUntitled(false)
-                }}
-                className="accent-ember"
-              />
-              Only ones I named
-            </label>
-            {!PUBLIC_SITE && (
-              <label
-                className="flex items-center gap-2 text-sm text-stone-300"
-                title="Threads you haven't named yet"
-              >
-                <input
-                  type="checkbox"
-                  checked={onlyUntitled}
-                  onChange={(e) => {
-                    setOnlyUntitled(e.target.checked)
-                    if (e.target.checked) setOnlyNamed(false)
-                  }}
-                  className="accent-ember"
-                />
-                Untitled
-                <span className="font-mono text-xs text-stone-500">
-                  {all.filter((t) => !t.named).length}
-                </span>
-              </label>
-            )}
-            {!PUBLIC_SITE && (
-              <label className="flex items-center gap-2 text-sm text-stone-300">
-                <input
-                  type="checkbox"
-                  checked={onlyStarred}
-                  onChange={(e) => setOnlyStarred(e.target.checked)}
-                  className="accent-ember"
-                />
-                <span aria-hidden className="text-ember">
-                  ★
-                </span>{" "}
-                Starred
-                <span className="font-mono text-xs text-stone-500">
-                  {all.filter(isStarred).length}
-                </span>
-              </label>
-            )}
-            {filtering && (
-              <span className="text-xs text-stone-500">
-                {threads.length} of {all.length}
+            {/* filters, as chips: "All" clears them; Starred and Untitled
+                narrow the list, and so does one category */}
+            <nav
+              aria-label="Filter threads"
+              className="relative flex flex-wrap items-center gap-2"
+            >
+              <span className="mr-1 font-mono text-[11px] uppercase tracking-widest text-stone-500">
+                Show
               </span>
-            )}
-          </div>
-        )}
-        {kinds.length > 0 && (
-          <nav
-            aria-label="Show threads of one category"
-            className="mb-4 flex flex-wrap items-center gap-2"
-          >
-            {[null, ...kinds].map((k) => (
               <button
-                key={k ?? "all"}
                 type="button"
-                aria-pressed={kind === k}
-                onClick={() => setKind(k)}
-                className={kind === k ? CHIP_ON : CHIP}
+                aria-pressed={!onlyStarred && !onlyUntitled && kind === null}
+                onClick={() => {
+                  setOnlyStarred(false)
+                  setOnlyUntitled(false)
+                  setKind(null)
+                }}
+                className={
+                  !onlyStarred && !onlyUntitled && kind === null
+                    ? CHIP_ON
+                    : CHIP
+                }
               >
-                {k && (
+                All
+                <span className="font-mono text-xs text-stone-500">
+                  {all.length}
+                </span>
+              </button>
+              {!PUBLIC_SITE && (
+                <button
+                  type="button"
+                  aria-pressed={onlyStarred}
+                  onClick={() => setOnlyStarred(!onlyStarred)}
+                  className={onlyStarred ? CHIP_ON : CHIP}
+                >
+                  <span aria-hidden>★</span> Starred
+                  <span className="font-mono text-xs text-stone-500">
+                    {all.filter(isStarred).length}
+                  </span>
+                </button>
+              )}
+              {!PUBLIC_SITE && (
+                <button
+                  type="button"
+                  aria-pressed={onlyUntitled}
+                  onClick={() => setOnlyUntitled(!onlyUntitled)}
+                  title="Threads with no title yet (the grey ones)"
+                  className={onlyUntitled ? CHIP_ON : CHIP}
+                >
+                  Untitled
+                  <span className="font-mono text-xs text-stone-500">
+                    {all.filter((t) => !hasTitle(t)).length}
+                  </span>
+                </button>
+              )}
+              {kinds.length > 0 && (
+                <span aria-hidden className="mx-1 h-4 w-px bg-white/10" />
+              )}
+              {kinds.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={kind === k}
+                  onClick={() => setKind(kind === k ? null : k)}
+                  className={kind === k ? CHIP_ON : CHIP}
+                >
                   <span
                     aria-hidden
                     className="h-2 w-2 rounded-full"
                     style={{ background: categoryColor(k) }}
                   />
-                )}
-                {k ? `${categoryGlyph(k)} ${k}` : "All"}
-                <span className="font-mono text-xs text-stone-500">
-                  {k ? all.filter((t) => kindOf(t) === k).length : all.length}
+                  {`${categoryGlyph(k)} ${k}`}
+                  <span className="font-mono text-xs text-stone-500">
+                    {all.filter((t) => kindOf(t) === k).length}
+                  </span>
+                </button>
+              ))}
+              {filtering && (
+                <span className="ml-1 text-xs text-stone-500">
+                  {threads.length} of {all.length} shown
                 </span>
-              </button>
-            ))}
-          </nav>
+              )}
+              <ThreadTopics
+                topics={threads.map((t) => ({
+                  id: t.id,
+                  title: t.title,
+                  fallback: opening(t),
+                  count: t.members.length,
+                }))}
+              />
+            </nav>
+          </div>
         )}
-        <ThreadTopics
-          topics={threads.map((t) => ({
-            id: t.id,
-            title: t.title,
-            fallback: opening(t),
-            count: t.members.length,
-          }))}
-        />
         {removeError && (
           <p role="alert" className="mb-6 text-sm text-rose-300">
             {removeError}
@@ -286,7 +317,6 @@ export function ThreadsView({
               type="button"
               onClick={() => {
                 setQ("")
-                setOnlyNamed(false)
                 setOnlyUntitled(false)
                 setOnlyStarred(false)
                 setKind(null)
@@ -363,19 +393,6 @@ export function ThreadsView({
                       custom={custom}
                     />
                     <AddHighlightToThread thread={refOf(thread)} />
-                    <RemoveThreadButton
-                      onHide={(hide, error) => {
-                        setRemoveError(
-                          error ? `Couldn’t remove a thread: ${error}` : "",
-                        )
-                        setHidden((ids) =>
-                          hide
-                            ? [...ids, thread.id]
-                            : ids.filter((id) => id !== thread.id),
-                        )
-                      }}
-                      thread={refOf(thread)}
-                    />
                     {thread.kind !== "qa" && (
                       <MergeThreadButton
                         thread={refOf(thread)}
@@ -395,6 +412,19 @@ export function ThreadsView({
                           }))}
                       />
                     )}
+                    <RemoveThreadButton
+                      onHide={(hide, error) => {
+                        setRemoveError(
+                          error ? `Couldn’t remove a thread: ${error}` : "",
+                        )
+                        setHidden((ids) =>
+                          hide
+                            ? [...ids, thread.id]
+                            : ids.filter((id) => id !== thread.id),
+                        )
+                      }}
+                      thread={refOf(thread)}
+                    />
                   </span>
                   <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-stone-500">
                     {grown.has(thread.id) && (

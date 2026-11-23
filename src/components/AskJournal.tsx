@@ -848,7 +848,7 @@ export function AskJournal() {
                 ? "Writing… esc or ctrl+C to stop"
                 : turns.length
                   ? "Reply, ask something else, or type help"
-                  : "Ask your journal, or type help"
+                  : "Ask journal, or type help"
             }
             aria-label="Your question, or a /command"
             autoFocus

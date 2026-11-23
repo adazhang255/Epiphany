@@ -116,11 +116,13 @@ async function storedField(id: string) {
 // Name a thread (or, with an empty name, go back to the automatic title).
 // An automatic thread becomes one you arranged, so the name stays with it.
 // A question's thread is titled by its question.
+// Gives the thread's id now (an automatic one becomes yours), or false.
 export async function renameThread(thread: ThreadRef, name: string) {
   if (thread.kind === "qa") return false
   if (thread.kind === "auto") {
-    await setThread(thread.memberIds, threadField(`t-${randomUUID()}`, name))
-    return true
+    const id = `t-${randomUUID()}`
+    await setThread(thread.memberIds, threadField(id, name))
+    return id
   }
   const match = {
     OR: [{ thread: thread.id }, { thread: { startsWith: `${thread.id}::` } }],
@@ -130,25 +132,39 @@ export async function renameThread(thread: ThreadRef, name: string) {
     prisma.quote.updateMany({ where: match, data: { thread: value } }),
     prisma.question.updateMany({ where: match, data: { thread: value } }),
   ])
-  return true
+  return thread.id
 }
 
 // Take a passage out of a thread: no longer an answer (question threads), or
-// left out of threads altogether. Nothing in the entry changes. Gives a way
-// to put it back (false if it can't be removed).
+// left out of threads altogether. Nothing in the entry changes. The rest of
+// the thread stays a thread, even with one passage left: an automatic one
+// becomes one you arranged, so the grouping can't split or drop it. Gives
+// a way to put it back and the thread's id now (false if it can't be
+// removed).
 export async function removeFromThread(item: string, thread: ThreadRef) {
-  const restore = await keepThreading(byIds([item]))
   if (thread.kind === "qa") {
     if (item.startsWith("q-")) return false
+    const restore = await keepThreading(byIds([item]))
     // kept as your highlight, so finding answers won't link it again
     await prisma.quote.update({
       where: { id: item },
       data: { replyToId: null, manual: true },
     })
-    return restore
+    return { restore, thread: thread.id }
   }
+  if (thread.kind === "pinned") {
+    const restore = await keepThreading(byIds([item]))
+    await setThread([item], "none")
+    return { restore, thread: thread.id }
+  }
+  const restore = await keepThreading(byIds(thread.memberIds))
+  const id = `t-${randomUUID()}`
+  await setThread(
+    thread.memberIds.filter((m) => m !== item),
+    id,
+  )
   await setThread([item], "none")
-  return restore
+  return { restore, thread: id }
 }
 
 // Take a whole thread apart. Its passages are left out of threads (so the

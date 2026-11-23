@@ -1,5 +1,6 @@
 "use client"
 
+import { TrashIcon } from "@/components/icons"
 import { PILL, PILL_ON } from "@/components/buttonStyles"
 import { showUndo } from "@/components/UndoToast"
 import { usePublicView } from "@/components/usePublicView"
@@ -77,35 +78,39 @@ function RemoveThreadButtonInner({
             : PILL
         }
       >
-        Remove thread
+        <TrashIcon /> Remove thread
       </button>
       {asking && (
         <span
           role="alertdialog"
           aria-label="Remove this thread?"
-          className="absolute left-0 top-full z-20 mt-1 flex w-max max-w-[85vw] flex-wrap items-center gap-2 rounded-md border border-rose-400/40 bg-stone-900 px-2 py-1.5 text-xs shadow-xl shadow-black/50"
+          // narrow, so the question wraps and "Yes, remove" sits just under
+          // where you clicked "Remove thread"
+          className="absolute left-0 top-full z-20 mt-1 block w-60 max-w-[85vw] rounded-md border border-rose-400/40 bg-stone-900 p-2 text-xs shadow-xl shadow-black/50"
         >
-          <span className="text-rose-200">
+          <span className="block leading-snug text-rose-200">
             {error ??
               (thread.kind === "qa"
                 ? "Unlink every answer from this question? Your highlights stay."
                 : "Take this thread apart? Your highlights and entries stay, just not threaded.")}
           </span>
-          <button
-            type="button"
-            onClick={() => setAsking(false)}
-            className="rounded px-2 py-0.5 text-stone-300 hover:bg-white/10"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={remove}
-            disabled={busy}
-            className="rounded bg-rose-400 px-2 py-0.5 font-bold text-stone-950 disabled:opacity-50"
-          >
-            {busy ? "Removing…" : "Yes, remove"}
-          </button>
+          <span className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={remove}
+              disabled={busy}
+              className="rounded bg-rose-400 px-2 py-0.5 font-bold text-stone-950 disabled:opacity-50"
+            >
+              {busy ? "Removing…" : "Yes, remove"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsking(false)}
+              className="rounded px-2 py-0.5 text-stone-300 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </span>
         </span>
       )}
     </span>

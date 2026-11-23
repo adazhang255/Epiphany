@@ -38,13 +38,21 @@ export const STOP = new Set(
 const countWords = (text: string) =>
   text.trim().split(/\s+/).filter(Boolean).length
 
+// A year is reviewed once it's nearly over: this year's review appears on
+// 1 December, earlier years' are always there.
+export function reviewable(year: number, now = new Date()) {
+  const current = now.getFullYear()
+  return year < current || (year === current && now.getMonth() === 11)
+}
+
 export function yearReviews(
   notes: ReviewNote[],
   threads: ThreadView[],
+  now = new Date(),
 ): YearReview[] {
-  const years = [...new Set(notes.map((n) => n.date.getFullYear()))].sort(
-    (a, b) => b - a,
-  )
+  const years = [...new Set(notes.map((n) => n.date.getFullYear()))]
+    .filter((year) => reviewable(year, now))
+    .sort((a, b) => b - a)
   return years.map((year) => {
     const inYear = notes.filter((n) => n.date.getFullYear() === year)
     const words = inYear.reduce((s, n) => s + countWords(n.content), 0)
