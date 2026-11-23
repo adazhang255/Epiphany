@@ -11,6 +11,7 @@ import {
   parsePurposes,
 } from "@/features/notes/lib/topics"
 import { stripInline } from "@/features/notes/lib/markdown"
+import { getStarred } from "@/features/notes/stars"
 import {
   deleteWithBackup,
   loadForBackup,
@@ -323,6 +324,8 @@ export async function setPurposes(noteId: string, purposes: string[]) {
 
 export type NotebookNote = {
   id: string
+  // one of your favourites (never on the public site)
+  starred: boolean
   title: string
   content: string
   date: string // ISO
@@ -336,13 +339,14 @@ export type NotebookNote = {
   highlights: { id: string; quote: string; category: string }[]
 }
 
-export type NotebookFilter = "all" | "uncategorized"
+export type NotebookFilter = "all" | "uncategorized" | "starred"
 
 // Full entries for the Notebook page, newest first, a few at a time.
 // `cursor` is the last entry already shown. "uncategorized" keeps only
 // entries whose highlights give no category (usually: none worth keeping).
 // Every entry, newest first, with what the Notebook filters by.
 async function loadNotebook() {
+  const starred = new Set(PUBLIC_SITE ? [] : await getStarred())
   const all = await prisma.note.findMany({
     orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     select: {
@@ -375,6 +379,7 @@ async function loadNotebook() {
     date: n.date.toISOString(),
     createdAt: n.createdAt.toISOString(),
     sentiment: PUBLIC_SITE ? null : n.sentiment,
+    starred: starred.has(n.id),
     purposes: entryCategories(
       n.ownCategory,
       quotes.map((q) => q.category),
@@ -398,6 +403,7 @@ export async function getNotebookPage(
   let matching = (await loadNotebook()).filter(
     (n) =>
       (filter !== "uncategorized" || n.purposes.length === 0) &&
+      (filter !== "starred" || n.starred) &&
       (!wantCategory ||
         n.purposes.some((c) => c.toLowerCase() === wantCategory)),
   )
@@ -433,6 +439,7 @@ export async function getNotebookFacets() {
   return {
     total: notes.length,
     uncategorized: notes.filter((n) => n.purposes.length === 0).length,
+    starred: notes.filter((n) => n.starred).length,
     categories: [...categories]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([name, count]) => ({ name, count })),

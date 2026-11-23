@@ -23,18 +23,11 @@ import {
 import { announceAnalysis } from "@/components/useAnalysisBusy"
 import { findQuote, snapToWords } from "@/features/notes/lib/findQuote"
 import {
-  caretEnd,
-  pickerSpot,
   spotStyle,
+  spotUnder,
   type PickerSpot,
 } from "@/features/notes/lib/caret"
-import {
-  follow,
-  markUp,
-  tint,
-  tinted,
-  type Range,
-} from "@/features/notes/lib/ranges"
+import { follow, tint, type Range } from "@/features/notes/lib/ranges"
 import {
   SENTIMENT_COLORS,
   SENTIMENT_LABELS,
@@ -43,16 +36,17 @@ import {
   highlightType,
 } from "@/features/notes/lib/topics"
 import { DeleteEntryButton } from "@/components/DeleteEntryButton"
+import { StarButton } from "@/components/StarButton"
 import { CategoryPicker } from "@/components/CategoryPicker"
 import { NotebookTitle } from "@/components/NotebookTitle"
 import { OnTop } from "@/components/OnTop"
 import { EntryTime } from "@/components/EntryTime"
-import { Formatted } from "@/components/Formatted"
+import { Formatted, FormattedText } from "@/components/Formatted"
 import { useHeaderSave } from "@/components/writeStatus"
 import { SaveCancel } from "@/components/SaveCancel"
 import { DraftTabs } from "@/components/DraftTabs"
-import { FormatBar, formatKeyDown } from "@/components/FormatBar"
-import { FormattedText, LiveFormatted } from "@/components/Formatted"
+import { FormatBar } from "@/components/FormatBar"
+import { RichText, type RichHandle } from "@/components/RichText"
 import { formatFlags, plainText } from "@/features/notes/lib/markdown"
 import { dayKey } from "@/features/notes/lib/time"
 import { trackerAnswer } from "@/features/trackers/legend"
@@ -201,6 +195,20 @@ function Page({
             the page) */}
         <header className="flex h-[30px] items-center gap-3">
           <NotebookTitle noteId={note.id} title={note.title} />
+          {/* a favourite? (the star stays once it is; otherwise it shows
+              while you're on the page, or always on a touch screen) */}
+          {!PUBLIC_SITE && (
+            <StarButton
+              noteId={note.id}
+              starred={note.starred}
+              onChange={() => router.refresh()}
+              className={`ml-auto shrink-0 text-xl ${
+                note.starred
+                  ? ""
+                  : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+              }`}
+            />
+          )}
         </header>
 
         <div ref={textRef} className="whitespace-pre-wrap break-words">
@@ -398,12 +406,14 @@ function BlankPage({
   // a moment of "Saved ✓" in the header, once it's in the notebook
   const [justSaved, setJustSaved] = useState(false)
   const [error, setError] = useState("")
-  const box = useRef<HTMLTextAreaElement>(null)
-  // the text formatted, instead of the text box
-  const [preview, setPreview] = useState(false)
+  const editor = useRef<RichHandle>(null)
   const wrap = useRef<HTMLDivElement>(null)
-  const copy = useRef<HTMLDivElement>(null)
   const nextKey = useRef(0)
+  // the text as last typed (edits can come faster than the page redraws)
+  const typed = useRef(content)
+  useEffect(() => {
+    typed.current = content
+  }, [content])
 
   // the unsaved page, kept as you write (clicking another page, filtering or
   // leaving doesn't lose it) and brought back here or on Write
@@ -468,45 +478,11 @@ function BlankPage({
     })
   }
 
-  // grow with the writing, so the text stays on the lines
-  useEffect(() => {
-    const el = box.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${Math.max(el.scrollHeight, 300)}px`
-  }, [content])
-
-  function readSelection() {
-    const el = box.current
-    if (!el) return
-    setSel(
-      el.selectionEnd > el.selectionStart
-        ? {
-            start: el.selectionStart,
-            end: el.selectionEnd,
-            caret: caretEnd(el),
-          }
-        : null,
-    )
-  }
-  // a text box's selection isn't always reported through its own events
-  useEffect(() => {
-    const onChange = () => {
-      if (document.activeElement === box.current) readSelection()
-    }
-    document.addEventListener("selectionchange", onChange)
-    return () => document.removeEventListener("selectionchange", onChange)
-  }, [])
-
   // the type picker sits just under the cursor at the end of the selection
   useLayoutEffect(() => {
     const host = wrap.current
-    const model = copy.current
-    if (!sel || !host || !model) {
-      setAnchor(null)
-      return
-    }
-    setAnchor(pickerSpot(host, model, content, sel.caret))
+    const rect = sel && editor.current?.rectAt(sel.caret)
+    setAnchor(host && rect ? spotUnder(rect, host) : null)
   }, [sel, content])
 
   // mark the selected words (whole words) as this type; highlights they
@@ -534,7 +510,15 @@ function BlankPage({
   const items = marks
     .filter((m) => ranges[m.key])
     .map((m) => ({ id: m.key, category: m.category }))
-  const parts = markUp(content, items, ranges)
+  const tints = useMemo(
+    () =>
+      items.map((h) => ({
+        ...ranges[h.id],
+        color: categoryColor(highlightType(h.category)),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [marks, ranges],
+  )
 
   function reset() {
     setTitle("")
@@ -550,8 +534,7 @@ function BlankPage({
 
   async function save() {
     if (!content.trim()) {
-      setPreview(false)
-      requestAnimationFrame(() => box.current?.focus())
+      editor.current?.focus()
       return setError("Write something first.")
     }
     setSaving(true)
@@ -640,12 +623,7 @@ function BlankPage({
           aria-label="Title"
           className="h-[30px] min-w-0 flex-1 basis-40 bg-transparent text-[22px] leading-[30px] text-ink outline-none placeholder:text-stone-600"
         />
-        <FormatBar
-          box={box}
-          preview={preview}
-          onPreview={setPreview}
-          className="h-[30px] shrink-0"
-        />
+        <FormatBar editor={editor} className="min-h-[30px] shrink-0" />
         <div className="ml-auto flex h-[30px] shrink-0 items-center gap-3">
           <input
             type="date"
@@ -665,46 +643,22 @@ function BlankPage({
         </div>
       </header>
 
-      {preview && (
-        <div
-          onClick={() => setPreview(false)}
-          title="Click to go back to writing"
-          className="flex-1 cursor-text whitespace-pre-wrap break-words leading-[30px] text-stone-100"
-        >
-          {content.trim() ? (
-            <FormattedText text={content} />
-          ) : (
-            <span className="text-stone-600">Nothing written yet.</span>
-          )}
-        </div>
-      )}
-      {/* the text, on a tinted copy that shows the highlights you mark */}
-      <div ref={wrap} className={preview ? "hidden" : "relative flex-1"}>
-        <div
-          ref={copy}
-          aria-hidden
-          className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words leading-[30px] live-copy"
-        >
-          <LiveFormatted parts={parts.map(tinted)} />
-          {"\u200b"}
-        </div>
-        <textarea
-          ref={box}
+      {/* the text (the highlights you mark tinted in) */}
+      <div ref={wrap} className="relative flex-1">
+        <RichText
+          handle={editor}
           value={content}
-          onChange={(e) => {
-            const next = e.target.value
-            setRanges((r) => follow(r, content, next))
+          onChange={(next) => {
+            const before = typed.current
+            typed.current = next
+            setRanges((r) => follow(r, before, next))
             setContent(next)
           }}
-          onSelect={readSelection}
-          onMouseUp={readSelection}
-          onKeyDown={formatKeyDown}
-          onKeyUp={readSelection}
+          tints={tints}
+          onSelect={(s) => setSel(s && s.end > s.start ? s : null)}
           placeholder="Write here… select words to mark them as a highlight"
-          aria-label="Write a new entry"
-          rows={10}
-          style={{ background: "transparent" }}
-          className="live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words leading-[30px] text-stone-100 outline-none placeholder:text-stone-600"
+          ariaLabel="Write a new entry"
+          className="min-h-[300px] text-stone-100"
         />
         {anchor && sel && (
           <OnTop>

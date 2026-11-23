@@ -19,6 +19,7 @@ import { KeepThreadInPlace } from "@/components/KeepThreadInPlace"
 import { describeGap } from "@/features/notes/lib/time"
 import { MATCH, type ThreadView } from "@/features/threads/match"
 import { EntryTitle } from "@/components/EntryTitle"
+import { foldText } from "@/features/search/words"
 
 // a thread's opening words, until it has a title
 const opening = (thread: ThreadView) =>
@@ -62,16 +63,16 @@ export function ThreadsView({
   const [q, setQ] = useState("")
   const [onlyNamed, setOnlyNamed] = useState(false)
   const shared = useThreadTitles()
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  const words = foldText(q).split(/\s+/).filter(Boolean)
   const threads = all.filter((t) => {
     if (onlyNamed && !t.named) return false
     if (words.length === 0) return true
-    const text = [
-      t.title ?? shared.get(t.id) ?? "",
-      ...t.members.flatMap((m) => [m.quote, m.noteTitle]),
-    ]
-      .join(" ")
-      .toLowerCase()
+    const text = foldText(
+      [
+        t.title ?? shared.get(t.id) ?? "",
+        ...t.members.flatMap((m) => [m.quote, m.noteTitle]),
+      ].join(" "),
+    )
     return words.every((w) => text.includes(w))
   })
   const filtering = words.length > 0 || onlyNamed

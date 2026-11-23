@@ -15,6 +15,7 @@ import { ExportDocsButton } from "@/components/ExportDocsButton"
 export type NotebookFacets = {
   total: number
   uncategorized: number
+  starred: number
   categories: { name: string; count: number }[]
 }
 
@@ -32,8 +33,11 @@ export function NotebookView({
   trackers?: TrackerView[]
 }) {
   const params = useSearchParams()
+  const asked = params.get("filter")
   const filter =
-    params.get("filter") === "uncategorized" ? "uncategorized" : "all"
+    asked === "uncategorized" || (asked === "starred" && !PUBLIC_SITE)
+      ? asked
+      : "all"
   const q = params.get("q")?.trim() || undefined
   // a category filter only counts if it's one in use (any case)
   const category =
@@ -45,6 +49,7 @@ export function NotebookView({
   const inView = all.filter(
     (n) =>
       (filter !== "uncategorized" || n.purposes.length === 0) &&
+      (filter !== "starred" || n.starred) &&
       (!category || n.purposes.includes(category)),
   )
   // a search keeps its own order: most relevant first
@@ -73,7 +78,7 @@ export function NotebookView({
     const f = next.filter === undefined ? filter : next.filter
     const c = next.category === undefined ? category : next.category
     const t = next.q === undefined ? q : next.q
-    if (f === "uncategorized") query.set("filter", f)
+    if (f === "uncategorized" || f === "starred") query.set("filter", f)
     else if (c) query.set("category", c.toLowerCase())
     if (t) query.set("q", t)
     const s = query.toString()
@@ -86,7 +91,7 @@ export function NotebookView({
         ? "border-white/30 bg-white/10 text-ink"
         : "border-white/10 text-stone-400 hover:text-stone-200"
     }`
-  const filtered = filter === "uncategorized" || category || q
+  const filtered = filter !== "all" || category || q
 
   return (
     <div className="mx-auto max-w-3xl pt-12">
@@ -97,12 +102,18 @@ export function NotebookView({
         <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">
           {filter === "uncategorized"
             ? "Nothing to hold onto?"
-            : "Every page, in full"}
+            : filter === "starred"
+              ? "Your favourites"
+              : "Every page, in full"}
         </h1>
         <p className="mt-3 text-stone-400">
           {filter === "uncategorized"
             ? "Entries with no category yet: no highlights to take one from, and none chosen. Give each one a category at the foot of its page (it saves straight away), open it to find highlights, or delete what you don't need."
-            : filtered
+            : filter === "starred" && !q
+              ? notes.length
+                ? `${notes.length} starred ${notes.length === 1 ? "entry" : "entries"}, newest first. Star a page (☆ by its title) to keep it here.`
+                : "Nothing starred yet. Star a page (☆ by its title) to keep it here."
+              : filtered
               ? q
                 ? found?.loading
                   ? "Searching…"
@@ -155,6 +166,21 @@ export function NotebookView({
               </span>
             </Link>
           ))}
+          {!PUBLIC_SITE && (
+            <Link
+              href={href({ filter: "starred", category: null })}
+              aria-current={filter === "starred" ? "page" : undefined}
+              className={chip(filter === "starred")}
+            >
+              <span aria-hidden className="text-ember">
+                ★
+              </span>
+              Starred
+              <span className="font-mono text-xs text-stone-500">
+                {facets.starred}
+              </span>
+            </Link>
+          )}
           <Link
             href={href({ filter: "uncategorized", category: null })}
             aria-current={filter === "uncategorized" ? "page" : undefined}
@@ -171,7 +197,7 @@ export function NotebookView({
           action="/notebook"
           active={q}
           keep={{
-            filter: filter === "uncategorized" ? filter : undefined,
+            filter: filter === "all" ? undefined : filter,
             category: category?.toLowerCase(),
           }}
           clearHref={href({ q: null })}

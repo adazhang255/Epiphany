@@ -2,14 +2,22 @@
 // word typed (any case). The public site searches this way; locally the
 // server also matches by meaning (see topic.ts and useTopicSearch).
 
-export const searchWords = (q: string) =>
-  q
+// Text as searches compare it: any case, and curly quotes as straight ones
+// (the editor curls them as you type, a search box usually doesn't), so
+// "didn't" finds "didn’t" and the other way round.
+export const foldText = (text: string) =>
+  text
     .toLowerCase()
-    .split(/[^\p{L}\p{N}'’]+/u)
+    .replace(/[‘’‚‛′ʼ]/g, "'")
+    .replace(/[“”„‟″]/g, '"')
+
+export const searchWords = (q: string) =>
+  foldText(q)
+    .split(/[^\p{L}\p{N}']+/u)
     .filter((w) => w.length > 1)
 
 export const hasAllWords = (text: string, wanted: string[]) => {
-  const t = text.toLowerCase()
+  const t = foldText(text)
   return wanted.every((w) => t.includes(w))
 }
 

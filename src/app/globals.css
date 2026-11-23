@@ -338,54 +338,115 @@ dialog.nav-drawer[open] {
   background: rgb(232 194 122 / 0.55);
 }
 
-/* Formatting shown as you type (LiveFormatted): the text box's letters are
-   see-through, over a formatted copy laid out letter for letter the same,
-   so nothing here may change a character's width. */
-.live-text {
-  color: transparent !important;
-  caret-color: var(--color-ink, #f5f5f4);
-}
-.live-text::selection {
-  color: transparent;
-  background: rgb(232 194 122 / 0.28);
-}
-.live-copy {
-  color: #e7e5e4;
-}
-.live-bullet {
-  color: rgb(232 194 122 / 0.85);
-}
-.live-bold,
-.live-heading {
-  color: var(--color-ink, #f5f5f4);
-  /* thicker without a wider face */
-  text-shadow:
-    0.35px 0 0 currentColor,
-    -0.35px 0 0 currentColor;
-}
-.live-heading {
-  text-shadow:
-    0.5px 0 0 currentColor,
-    -0.5px 0 0 currentColor;
-}
-.live-quote {
-  color: #a8a29e;
-}
-.live-marker {
-  color: rgb(168 162 158 / 0.45);
-  text-shadow: none;
-}
-/* underlined: the same in the live copy (italic words are each slanted on
-   their own, so they're underlined on their own too) */
-.md-underline,
-.live-underline,
-.live-underline .live-slant {
+/* underlined, struck through, and a divider (its dashes hidden, a line
+   across the ruled line they sit on) */
+.md-underline {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
-
-.live-slant {
-  display: inline-block;
-  transform: skewX(-9deg);
+.md-strike {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgb(231 229 228 / 0.7);
 }
+.md-rule {
+  display: inline-block;
+  width: 100%;
+  color: transparent;
+  background: linear-gradient(
+    to bottom,
+    transparent calc(50% - 0.5px),
+    rgb(255 255 255 / 0.28) calc(50% - 0.5px),
+    rgb(255 255 255 / 0.28) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+/* The rich editor (RichText): each line of the entry one block, on the
+   ruled paper's 30px lines, formatted as it's shown. */
+.rt-text {
+  outline: none;
+  line-height: 30px;
+  color: #f5f5f4;
+}
+.rt-text p {
+  margin: 0;
+  min-height: 30px;
+}
+.rt-text strong {
+  font-weight: 600;
+  color: var(--color-ink, #f5f5f4);
+}
+.rt-text u {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.rt-text s {
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgb(231 229 228 / 0.7);
+}
+.rt-text .rt-h1 {
+  font-size: 1.4em;
+  font-weight: 600;
+  color: var(--color-ink, #f5f5f4);
+}
+.rt-text .rt-h2 {
+  font-size: 1.15em;
+  font-weight: 600;
+  color: var(--color-ink, #f5f5f4);
+}
+.rt-text .rt-quote {
+  position: relative;
+  padding-left: 0.9em;
+  font-style: italic;
+  color: #a8a29e;
+}
+.rt-text .rt-quote::before {
+  content: "";
+  position: absolute;
+  left: 0.15em;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: rgb(232 194 122 / 0.55);
+}
+.rt-text .rt-bullet,
+.rt-text .rt-numbered {
+  position: relative;
+  padding-left: 1.3em;
+}
+.rt-text .rt-bullet::before {
+  content: "•";
+  position: absolute;
+  left: 0.3em;
+  color: rgb(232 194 122 / 0.85);
+}
+.rt-text .rt-numbered::before {
+  content: attr(data-n);
+  position: absolute;
+  left: 0;
+  color: rgb(232 194 122 / 0.85);
+  font-variant-numeric: tabular-nums;
+}
+.rt-text .rt-rule {
+  height: 30px;
+  background: linear-gradient(
+    to bottom,
+    transparent calc(50% - 0.5px),
+    rgb(255 255 255 / 0.28) calc(50% - 0.5px),
+    rgb(255 255 255 / 0.28) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+.rt-text .rt-rule.ProseMirror-selectednode {
+  outline: 1px solid rgb(232 194 122 / 0.6);
+}
+.rt-text .rt-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: #57534e;
+  pointer-events: none;
+}
+.rt-text { min-height: inherit; }

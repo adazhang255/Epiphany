@@ -1,5 +1,3 @@
-import { categoryColor, highlightType } from "@/features/notes/lib/topics"
-
 // Highlights in text being edited: where each one is, kept in step with the
 // edits, and the text cut into plain and highlighted runs for drawing a
 // tinted copy under a text box. Used by the entry editor and the notebook's
@@ -66,41 +64,4 @@ function refind(words: string, text: string, near: number): Range | null {
   for (let i = text.indexOf(words); i >= 0; i = text.indexOf(words, i + 1))
     if (best === null || Math.abs(i - near) < Math.abs(best - near)) best = i
   return best === null ? null : { start: best, end: best + words.length }
-}
-
-// a run from markUp, styled as it's drawn behind the text box
-export const tinted = (part: { text: string; color?: string }) =>
-  part.color
-    ? {
-        text: part.text,
-        style: {
-          background: tint(part.color, 0.22),
-          boxShadow: `inset 0 -2px 0 ${tint(part.color, 0.85)}`,
-        },
-      }
-    : { text: part.text }
-
-// The text being edited, cut into plain runs and highlighted ones.
-export function markUp(
-  text: string,
-  items: { id: string; category: string }[],
-  ranges: Record<string, Range>,
-) {
-  const found = items
-    .filter((h) => ranges[h.id])
-    .map((h) => ({ h, range: ranges[h.id] }))
-    .sort((a, b) => a.range.start - b.range.start)
-  const parts: { text: string; color?: string }[] = []
-  let at = 0
-  for (const { h, range } of found) {
-    if (range.start < at) continue // overlaps one already drawn
-    if (range.start > at) parts.push({ text: text.slice(at, range.start) })
-    parts.push({
-      text: text.slice(range.start, range.end),
-      color: categoryColor(highlightType(h.category)),
-    })
-    at = range.end
-  }
-  parts.push({ text: text.slice(at) })
-  return parts
 }

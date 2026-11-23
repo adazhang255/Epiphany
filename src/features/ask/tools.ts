@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { cosine, parseEmbedding } from "@/features/notes/lib/similarity"
 import { entryCategories } from "@/features/notes/lib/topics"
 import { embed } from "@/features/notes/services/embeddings.service"
+import { foldText } from "@/features/search/words"
 import {
   createProposal,
   MAX_PER_PROPOSAL,
@@ -256,8 +257,8 @@ function view(note: {
 async function findEntries(args: Record<string, unknown>, ctx: ToolContext) {
   const after = parseDay(args.after)
   const before = parseDay(args.before)
-  const titleContains = str(args.titleContains)?.toLowerCase()
-  const textContains = str(args.textContains)?.toLowerCase()
+  const titleContains = foldText(str(args.titleContains) ?? "")
+  const textContains = foldText(str(args.textContains) ?? "")
   const maxWords = num(args.maxWords)
   const minWords = num(args.minWords)
   const category = str(args.category)?.toLowerCase()
@@ -287,8 +288,8 @@ async function findEntries(args: Record<string, unknown>, ctx: ToolContext) {
   let matches = notes.filter((n) => {
     const words = wordCount(n.content)
     return (
-      (!titleContains || n.title.toLowerCase().includes(titleContains)) &&
-      (!textContains || n.content.toLowerCase().includes(textContains)) &&
+      (!titleContains || foldText(n.title).includes(titleContains)) &&
+      (!textContains || foldText(n.content).includes(textContains)) &&
       (maxWords === null || words <= maxWords) &&
       (minWords === null || words >= minWords) &&
       (!category ||
@@ -420,8 +421,7 @@ const SKIP = new Set(
 // the words in a request that could pick out a thread or passage
 const requestWords = (text: string) => [
   ...new Set(
-    text
-      .toLowerCase()
+    foldText(text)
       .split(/[^a-z0-9']+/)
       .filter((w) => w.length > 2 && !SKIP.has(w)),
   ),
@@ -449,9 +449,9 @@ export async function findThreads(
   const matches = words.length
     ? threads
         .map((t) => {
-          const text = [threadTitle(t), ...t.members.map((m) => m.quote)]
-            .join(" ")
-            .toLowerCase()
+          const text = foldText(
+            [threadTitle(t), ...t.members.map((m) => m.quote)].join(" "),
+          )
           return { t, score: words.filter((w) => text.includes(w)).length }
         })
         .filter((m) => m.score > 0)
@@ -496,7 +496,7 @@ export function bestPassage(text: string, ctx: ToolContext) {
     t.members.forEach((m, j) => {
       // a question's own question stays in its thread
       if (t.kind === "qa" && j === 0) return
-      const quote = m.quote.toLowerCase()
+      const quote = foldText(m.quote)
       const score = words.filter((w) => quote.includes(w)).length
       if (score > (best?.score ?? 0))
         best = { thread: i + 1, passage: j + 1, score }

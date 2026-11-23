@@ -22,34 +22,9 @@ export function spotUnder(rect: DOMRect, host: HTMLElement, gap = 4) {
   }
 }
 
-// For a spot in a text box: measured on an invisible copy of the text
-// (`model`) laid out exactly like the box, inside `host`.
-export function pickerSpot(
-  host: HTMLElement,
-  model: HTMLElement,
-  text: string,
-  at: number,
-): PickerSpot {
-  const mirror = document.createElement("div")
-  mirror.className = model.className
-  mirror.style.visibility = "hidden"
-  mirror.textContent = text.slice(0, at)
-  const marker = document.createElement("span")
-  marker.textContent = "​"
-  mirror.appendChild(marker)
-  host.appendChild(mirror)
-  const spot = marker.getBoundingClientRect()
-  mirror.remove()
-  return spotUnder(spot, host)
-}
-
 // the style that puts a picker at a spot
 export const spotStyle = (s: PickerSpot) => ({
   top: s.top,
   left: s.left,
   transform: s.flip ? "translateX(-100%)" : undefined,
 })
-
-// The end of a selection the cursor is at: where the drag finished.
-export const caretEnd = (el: HTMLTextAreaElement) =>
-  el.selectionDirection === "backward" ? el.selectionStart : el.selectionEnd

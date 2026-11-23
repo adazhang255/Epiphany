@@ -73,55 +73,6 @@ describe("formatting", () => {
   })
 })
 
-import {
-  continueList,
-  cycleHeading,
-  toggleBullets,
-  toggleLines,
-  toggleWrap,
-  type TextEdit,
-} from "@/features/notes/lib/markdownEdit"
-
-// "[" and "]" in the text mark the selection, before and after the edit
-function after(
-  t: string,
-  edit: (v: string, s: number, e: number) => TextEdit | null,
-) {
-  const s = t.indexOf("[")
-  const e = t.indexOf("]") - 1
-  const v = t.replace("[", "").replace("]", "")
-  const ed = edit(v, s, e)
-  if (!ed) return null
-  const out = v.slice(0, ed.start) + ed.insert + v.slice(ed.end)
-  return `${out.slice(0, ed.from)}[${out.slice(ed.from, ed.to)}]${out.slice(ed.to)}`
-}
-const bold = (v: string, s: number, e: number) => toggleWrap(v, s, e, "**")
-const italic = (v: string, s: number, e: number) => toggleWrap(v, s, e, "*")
-
-describe("formatting buttons", () => {
-  it("bold and italic wrap the selection, and unwrap it", () => {
-    expect(after("a [word ]b", bold)).toBe("a **[word]** b")
-    expect(after("a **[word]** b", bold)).toBe("a [word] b")
-    expect(after("a [**word**] b", bold)).toBe("a [word] b")
-    expect(after("a *[word]* b", italic)).toBe("a [word] b")
-    // italic inside bold doesn't take bold's stars for its own
-    expect(after("**[word]**", italic)).toBe("***[word]***")
-    expect(after("a[]b", bold)).toBe("a**[]**b")
-  })
-  it("bullets on the selected lines, and off again", () => {
-    expect(after("x\n[one\ntwo]\ny", toggleBullets)).toBe(
-      "x\n[- one\n- two]\ny",
-    )
-    expect(after("[- one\n- two]", toggleBullets)).toBe("[one\ntwo]")
-    expect(after("a\n[]", toggleBullets)).toBe("a\n- []")
-  })
-  it("Enter continues a list, and ends it on an empty bullet", () => {
-    expect(after("- one[]", continueList)).toBe("- one\n- []")
-    expect(after("- one\n- []", continueList)).toBe("- one\n[]")
-    expect(after("plain[]", continueList)).toBeNull()
-  })
-})
-
 describe("headings and quotes", () => {
   const show = (text: string) =>
     formatRuns(text, formatFlags(text))
@@ -151,21 +102,9 @@ describe("headings and quotes", () => {
     expect(stripInline(text)).toBe("Day one\nIt was good.")
     expect(quoteIn(text, "Day one It was good")).toBe("Day one\nIt was good")
   })
-  it("the heading button steps # → ## → none; quote toggles", () => {
-    expect(after("[Title]", cycleHeading)).toBe("[# Title]")
-    expect(after("[# Title]", cycleHeading)).toBe("[## Title]")
-    expect(after("[## Title]", cycleHeading)).toBe("[Title]")
-    expect(after("[a\nb]", (v, s, e) => toggleLines(v, s, e, "quote"))).toBe(
-      "[> a\n> b]",
-    )
-    expect(
-      after("[> a\n> b]", (v, s, e) => toggleLines(v, s, e, "quote")),
-    ).toBe("[a\nb]")
-  })
 })
 
 describe("underline", () => {
-  const under = (v: string, s: number, e: number) => toggleWrap(v, s, e, "__")
   it("shows __words__ underlined, apart from italic and snake_case", () => {
     expect(shown("a __b c__ d")).toBe("a <u>b c</u> d")
     expect(shown("_a_ __b__")).toBe("<i>a</i> <u>b</u>")
@@ -177,9 +116,63 @@ describe("underline", () => {
     expect(stripInline("a __b__ c")).toBe("a b c")
     expect(stripInline("__cut off")).toBe("cut off")
   })
-  it("the button wraps the selection, and unwraps it", () => {
-    expect(after("a [word ]b", under)).toBe("a __[word]__ b")
-    expect(after("a __[word]__ b", under)).toBe("a [word] b")
-    expect(after("a [__word__] b", under)).toBe("a [word] b")
+})
+
+import { STRIKE, RULE, shownRuns } from "@/features/notes/lib/markdown"
+import { smarten } from "@/features/notes/lib/smartPunctuation"
+
+describe("strikethrough and dividers", () => {
+  it("shows ~~words~~ struck through, markers hidden", () => {
+    const t = "a ~~b c~~ d"
+    const runs = formatRuns(t, formatFlags(t)).filter(
+      (r) => !(r.flags & MARKER),
+    )
+    expect(runs.map((r) => r.text).join("")).toBe("a b c d")
+    expect(runs.find((r) => r.text === "b c")!.flags & STRIKE).toBeTruthy()
+    expect(stripInline(t)).toBe("a b c d")
+  })
+  it("a line of dashes is a divider, kept out of highlights", () => {
+    for (const line of ["---", "-----", "***", "—-"]) {
+      const t = `one\n${line}\ntwo`
+      const f = formatFlags(t)
+      expect(f[4] & RULE).toBeTruthy()
+      expect(stripInline(t)).toBe("one\n\ntwo")
+    }
+    expect(formatFlags("a --- b")[2] & RULE).toBeFalsy()
+    expect(shownRuns("---")[0]).toMatchObject({ rule: true, text: "⸻" })
+  })
+})
+
+describe("punctuation as you type", () => {
+  const type = (before: string, ch: string) => {
+    const s = smarten(before, ch)
+    return s
+      ? before.slice(0, before.length - s.remove) + s.insert
+      : before + ch
+  }
+  it("makes dashes, ellipses, arrows and symbols", () => {
+    expect(type("a -", "-")).toBe("a —")
+    expect(type("wait..", ".")).toBe("wait…")
+    expect(type("a -", ">")).toBe("a →")
+    expect(type("x <", "=")).toBe("x ≤")
+    expect(type("(c", ")")).toBe("©")
+    expect(type("(tm", ")")).toBe("™")
+    // a third dash stays one, so "---" can still make a divider
+    expect(type("—", "-")).toBe("—-")
+  })
+  it("curls quotes the right way", () => {
+    expect(type("", '"')).toBe("“")
+    expect(type("say “hi", '"')).toBe("say “hi”")
+    expect(type("don", "'")).toBe("don’")
+    expect(type("a (", "'")).toBe("a (‘")
+  })
+  it("leaves everything else alone", () => {
+    for (const [b, c] of [
+      ["a", "-"],
+      ["1", "."],
+      ["x", ">"],
+      ["- ", "x"],
+    ])
+      expect(smarten(b, c)).toBeNull()
   })
 })

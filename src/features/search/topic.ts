@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma"
 import { cosine, parseEmbedding } from "@/features/notes/lib/similarity"
 import { embed } from "@/features/notes/services/embeddings.service"
+import {
+  hasAllWords as hasAll,
+  searchWords as words,
+} from "@/features/search/words"
 
 // Topic search: find entries (and highlights) about something, two ways.
 //   - by words: every word you typed appears in it (any case), ranked first
@@ -37,17 +41,6 @@ const store = globalThis as unknown as {
   __topicVectors?: Map<string, number[]>
 }
 const vectors: Map<string, number[]> = (store.__topicVectors ??= new Map())
-
-const words = (q: string) =>
-  q
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}'’]+/u)
-    .filter((w) => w.length > 1)
-
-const hasAll = (text: string, wanted: string[]) => {
-  const t = text.toLowerCase()
-  return wanted.every((w) => t.includes(w))
-}
 
 export async function searchTopic(query: string): Promise<TopicResults> {
   const q = query.trim()

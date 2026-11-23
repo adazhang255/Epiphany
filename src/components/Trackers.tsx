@@ -1686,6 +1686,8 @@ function slideArrows({
 // which slide this browser last showed (your writing, or a tracker's id)
 const SLIDE_KEY = "daybyday:slide"
 const WRITING = "writing"
+// your writing's own slide, built in (it can't be deleted)
+const WRITING_NAME = "Day by day"
 
 // ---- the "Day by day" section (Trackers tab) ------------------------------
 // One slideshow: your writing first, then each of your trackers; ‹ › moves
@@ -1729,7 +1731,7 @@ export function Trackers({
   // (a tracker that's gone, or not loaded: back to your writing)
   const index = Math.max(0, slides.indexOf(current))
   const tracker = index === 0 ? null : list[index - 1]
-  const name = (i: number) => (i === 0 ? "Your writing" : list[i - 1].name)
+  const name = (i: number) => (i === 0 ? WRITING_NAME : list[i - 1].name)
   const go = (by: number) => {
     setForm(null)
     choose(slides[(((index + by) % count) + count) % count])
@@ -1827,7 +1829,7 @@ export function Trackers({
       )}
 
       {!tracker ? (
-        <DayHeatmap days={days} title="Your writing" nav={arrows} />
+        <DayHeatmap days={days} title={WRITING_NAME} nav={arrows} />
       ) : form === tracker.id ? (
         <TrackerForm
           key={tracker.id}
@@ -1879,10 +1881,13 @@ export function Trackers({
         />
       )}
 
-      {list.length > 0 && form === null && (
+      {trackers !== null && form === null && (
         <TrackerList
           trackers={list}
-          current={tracker?.id}
+          writingDays={
+            Object.values(days).filter((d) => d.entries > 0).length
+          }
+          current={tracker?.id ?? WRITING}
           onOpen={choose}
           onDelete={remove}
         />
@@ -1909,15 +1914,19 @@ export function Trackers({
   )
 }
 
-// All your trackers at a glance, under the slideshow: open one, or delete
-// it (after a second tap, saying how many days go with it).
+// All your trackers at a glance, under the slideshow: "Day by day" (your
+// writing, built in) first, then your own; open one, or delete one of your
+// own (after a second tap, saying how many days go with it).
 function TrackerList({
   trackers,
+  writingDays,
   current,
   onOpen,
   onDelete,
 }: {
   trackers: TrackerView[]
+  // days you wrote on
+  writingDays: number
   current?: string
   onOpen: (id: string) => void
   onDelete: (t: TrackerView) => void
@@ -1929,6 +1938,20 @@ function TrackerList({
         Your trackers
       </h3>
       <ul className="mt-2 divide-y divide-white/[0.06] rounded-xl border border-white/[0.07]">
+        <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+          <button
+            type="button"
+            onClick={() => onOpen(WRITING)}
+            aria-current={current === WRITING ? "true" : undefined}
+            className={`min-w-0 truncate text-left hover:text-ink ${current === WRITING ? "text-ink" : "text-stone-300"}`}
+          >
+            {WRITING_NAME}
+          </button>
+          <span className="text-xs text-stone-500">
+            your writing · {writingDays} {writingDays === 1 ? "day" : "days"}
+          </span>
+          <span className="ml-auto text-xs text-stone-600">built in</span>
+        </li>
         {trackers.map((t) => {
           const days = Object.keys(t.marks).length
           return (

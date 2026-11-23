@@ -29,6 +29,9 @@ import {
 } from "@/features/notes/services/notes.service"
 import { isAnalysisPending } from "@/features/notes/services/analysis-queue"
 import { EntryTitle } from "@/components/EntryTitle"
+import { StarButton } from "@/components/StarButton"
+import { PUBLIC_SITE } from "@/lib/site-mode"
+import { getStarred } from "@/features/notes/stars"
 import { ExportDocsButton } from "@/components/ExportDocsButton"
 import { EntryTime } from "@/components/EntryTime"
 
@@ -68,9 +71,10 @@ export default async function NotePage({
 }) {
   const { id } = await params
   const pending = isAnalysisPending(id)
-  const [result, custom] = await Promise.all([
+  const [result, custom, starred] = await Promise.all([
     getNoteWithNeighbors(id),
     getCustomCategories(),
+    PUBLIC_SITE ? ([] as string[]) : getStarred(),
   ])
   if (!result) {
     notFound()
@@ -123,9 +127,18 @@ export default async function NotePage({
                 />{" "}
                 · {describeAgo(note.date)}
               </p>
-              <h1 className="mt-3 font-serif text-4xl leading-tight text-ink sm:text-5xl">
-                <EntryTitle title={note.title} />
-              </h1>
+              <div className="mt-3 flex items-start gap-3">
+                <h1 className="min-w-0 font-serif text-4xl leading-tight text-ink sm:text-5xl">
+                  <EntryTitle title={note.title} />
+                </h1>
+                {!PUBLIC_SITE && (
+                  <StarButton
+                    noteId={note.id}
+                    starred={starred.includes(note.id)}
+                    className="mt-1 shrink-0 text-3xl sm:mt-2"
+                  />
+                )}
+              </div>
               <dl className="mt-5 space-y-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <dt className="w-16 font-mono text-[10px] uppercase tracking-widest text-stone-600">

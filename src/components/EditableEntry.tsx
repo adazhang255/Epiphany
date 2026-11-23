@@ -20,20 +20,21 @@ import { HighlightKind } from "@/components/HighlightKind"
 import { useEntryParams } from "@/components/EntryParams"
 import { findQuote, snapToWords } from "@/features/notes/lib/findQuote"
 import {
-  caretEnd,
-  pickerSpot,
   spotStyle,
+  spotUnder,
   type PickerSpot,
 } from "@/features/notes/lib/caret"
-import { follow, markUp, tinted, type Range } from "@/features/notes/lib/ranges"
+import { follow, type Range } from "@/features/notes/lib/ranges"
 import {
   SENTIMENT_COLORS,
   SENTIMENT_LABELS,
+  categoryColor,
+  highlightType,
   splitList,
 } from "@/features/notes/lib/topics"
 import { TrashIcon } from "@/components/TrashIcon"
-import { FormatBar, formatKeyDown } from "@/components/FormatBar"
-import { FormattedText, LiveFormatted } from "@/components/Formatted"
+import { FormatBar } from "@/components/FormatBar"
+import { RichText, type RichHandle } from "@/components/RichText"
 import { clockTime } from "@/features/notes/lib/time"
 
 const isoDay = (iso: string) => {
@@ -104,9 +105,7 @@ export function EditableEntry({
 }) {
   const router = useRouter()
   const readOnly = usePublicView()
-  const box = useRef<HTMLTextAreaElement>(null)
-  // the text formatted, instead of the text box
-  const [preview, setPreview] = useState(false)
+  const editor = useRef<RichHandle>(null)
   // ?edit=1 opens straight into editing (e.g. arriving from the notebook)
   const { edit } = useEntryParams()
   const [editing, setEditing] = useState(edit)
@@ -141,7 +140,6 @@ export function EditableEntry({
   // the type picker floats just under the selection (or the highlight you
   // clicked into); typing hides it
   const wrap = useRef<HTMLDivElement>(null)
-  const copy = useRef<HTMLDivElement>(null)
   const [clickedInto, setClickedInto] = useState(false)
   const [anchor, setAnchor] = useState<PickerSpot | null>(null)
 
@@ -293,31 +291,20 @@ export function EditableEntry({
     setCategoryTouched(true)
   }
 
-  function readSelection() {
-    const el = box.current
-    if (!el) return
-    setCaret(el.selectionStart)
-    setSelRange(
-      el.selectionEnd > el.selectionStart
-        ? {
-            start: el.selectionStart,
-            end: el.selectionEnd,
-            caret: caretEnd(el),
-          }
-        : null,
-    )
+  // the selection in the box (left as it was when the box loses the focus,
+  // e.g. to the picker beside it)
+  function readSelection(
+    s: { start: number; end: number; caret: number } | null,
+  ) {
+    if (!s) return
+    setCaret(s.start)
+    setSelRange(s.end > s.start ? s : null)
   }
-
-  // a text box's selection isn't always reported through its own events;
-  // the page-wide selectionchange always fires
+  // the text as last typed (edits can come faster than the page redraws)
+  const typed = useRef(draft.content)
   useEffect(() => {
-    if (!editing) return
-    const onChange = () => {
-      if (document.activeElement === box.current) readSelection()
-    }
-    document.addEventListener("selectionchange", onChange)
-    return () => document.removeEventListener("selectionchange", onChange)
-  }, [editing])
+    typed.current = draft.content
+  }, [draft.content])
 
   // every highlight showing now: the entry's (minus removed), then new ones
   const items = [
@@ -326,7 +313,10 @@ export function EditableEntry({
       .map((h) => ({ id: h.id, category: types[h.id] ?? h.category })),
     ...added.map((a) => ({ id: a.key, category: a.category })),
   ].filter((h) => ranges[h.id])
-  const parts = markUp(draft.content, items, ranges)
+  const tints = items.map((h) => ({
+    ...ranges[h.id],
+    color: categoryColor(highlightType(h.category)),
+  }))
   // the highlight the cursor is in (when nothing is selected)
   const here =
     !selRange && caret !== null
@@ -393,15 +383,6 @@ export function EditableEntry({
   const clearDraft = useDraftAutosave(draftKey, keep, ready && editing)
   useUnsavedWarning(unsaved && !saving)
 
-  // the box grows with its text (no inner scrolling), so the tinted copy
-  // behind it always lines up
-  useLayoutEffect(() => {
-    const el = box.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${el.scrollHeight}px`
-  }, [draft.content, editing])
-
   // where the floating picker goes: under the cursor at the end of the
   // selection, or the end of the highlight you clicked into
   const anchorAt = selRange
@@ -411,12 +392,8 @@ export function EditableEntry({
       : null
   useLayoutEffect(() => {
     const host = wrap.current
-    const model = copy.current
-    if (anchorAt === null || !host || !model) {
-      setAnchor(null)
-      return
-    }
-    setAnchor(pickerSpot(host, model, draft.content, anchorAt))
+    const rect = anchorAt === null ? null : editor.current?.rectAt(anchorAt)
+    setAnchor(host && rect ? spotUnder(rect, host) : null)
   }, [anchorAt, draft.content])
 
   // Mark the selected words as a highlight of this type. Highlights they
@@ -647,61 +624,37 @@ export function EditableEntry({
         </div>
       </div>
 
-      <FormatBar
-        box={box}
-        preview={preview}
-        onPreview={setPreview}
-        className="-mb-3 justify-end"
-      />
-      {preview && (
-        <div
-          onClick={() => setPreview(false)}
-          title="Click to go back to writing"
-          className="notebook min-h-[22rem] cursor-text whitespace-pre-wrap break-words rounded-xl border border-ember/25 py-3 pr-4 font-serif text-[18px] text-stone-200"
-        >
-          <FormattedText text={draft.content} />
-        </div>
-      )}
-      {/* the text box sits on a copy of the text with the highlights
-          tinted in, laid out identically, so they show while you edit */}
-      <div ref={wrap} className={preview ? "hidden" : "relative"}>
-        <div
-          ref={copy}
-          aria-hidden
-          className="notebook pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent py-3 pr-4 font-serif text-[18px] live-copy"
-        >
-          <LiveFormatted parts={parts.map(tinted)} />
-          {"\u200b"}
-        </div>
-        <textarea
-          ref={box}
+      <FormatBar editor={editor} className="-mb-3 justify-end" />
+      {/* the text, its highlights tinted in, so they show while you edit */}
+      <div
+        ref={wrap}
+        className="relative"
+        onKeyDown={(e) => {
+          // typing (not just moving around) puts the picker away
+          if (
+            e.key.length === 1 ||
+            e.key === "Backspace" ||
+            e.key === "Delete" ||
+            e.key === "Enter"
+          )
+            setClickedInto(false)
+        }}
+        onMouseUp={() => setClickedInto(true)}
+      >
+        <RichText
+          handle={editor}
           value={draft.content}
-          onChange={(e) => {
-            const next = e.target.value
-            setRanges((r) => follow(r, draft.content, next))
-            setDraft({ ...draft, content: next })
+          onChange={(next) => {
+            const before = typed.current
+            typed.current = next
+            setRanges((r) => follow(r, before, next))
+            setDraft((d) => ({ ...d, content: next }))
           }}
+          tints={tints}
           onSelect={readSelection}
-          onKeyDown={(e) => {
-            if (formatKeyDown(e)) return setClickedInto(false)
-            // typing (not just moving around) puts the picker away
-            if (
-              e.key.length === 1 ||
-              e.key === "Backspace" ||
-              e.key === "Delete"
-            )
-              setClickedInto(false)
-          }}
-          onKeyUp={readSelection}
-          onMouseUp={() => {
-            readSelection()
-            setClickedInto(true)
-          }}
-          aria-label="Entry text"
+          ariaLabel="Entry text"
           autoFocus
-          rows={12}
-          style={{ background: "transparent" }}
-          className="notebook live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
+          className="notebook min-h-[22rem] rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 focus-within:border-white/30"
         />
 
         {anchor && (selRange || here) && (

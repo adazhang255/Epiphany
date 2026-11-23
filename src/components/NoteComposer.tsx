@@ -7,8 +7,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ANALYSIS_EVENT } from "@/components/AnalysisIndicator"
 import { Walker } from "@/components/DraggableTimeline"
 import { CategoryPicker } from "@/components/CategoryPicker"
-import { FormatBar, formatKeyDown } from "@/components/FormatBar"
-import { FormattedText, LiveFormatted } from "@/components/Formatted"
+import { FormatBar } from "@/components/FormatBar"
+import { RichText, type RichHandle } from "@/components/RichText"
 import { useHeaderSave } from "@/components/writeStatus"
 import { SaveCancel } from "@/components/SaveCancel"
 import { SENTIMENT_COLORS, SENTIMENT_LABELS } from "@/features/notes/lib/topics"
@@ -51,9 +51,7 @@ export function NoteComposer({
   // "HH:MM", or "" for none given (then the time it's saved is shown)
   const [time, setTime] = useState("")
   const [content, setContent] = useState("")
-  const box = useRef<HTMLTextAreaElement>(null)
-  // the text formatted, instead of the text box
-  const [preview, setPreview] = useState(false)
+  const editor = useRef<RichHandle>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [tone, setTone] = useState<number | null>(null)
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
@@ -119,9 +117,8 @@ export function NoteComposer({
     event?.preventDefault()
     if (!content.trim()) {
       setError("Write something before saving.")
-      // (saving from the header: the text box may be out of sight)
-      setPreview(false)
-      requestAnimationFrame(() => box.current?.focus())
+      // (saving from the header: the box may be out of sight)
+      editor.current?.focus()
       return
     }
 
@@ -181,14 +178,6 @@ export function NoteComposer({
     )
   }
 
-  // grow with the writing, so it lines up with the formatted copy under it
-  useEffect(() => {
-    const el = box.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${el.scrollHeight}px`
-  }, [content, preview])
-
   // the header's Write button saves this entry while it's on the page
   useHeaderSave(true, status, save)
 
@@ -234,41 +223,17 @@ export function NoteComposer({
           <label htmlFor="entry-text" className="text-sm text-stone-400">
             Entry
           </label>
-          <FormatBar box={box} preview={preview} onPreview={setPreview} />
+          <FormatBar editor={editor} />
         </div>
-        {/* the text box sits on a copy of the text, formatted as you type */}
-        <div className={preview ? "hidden" : "relative"}>
-          <div
-            aria-hidden
-            className="notebook live-copy pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent py-3 pr-4 font-serif text-[18px]"
-          >
-            <LiveFormatted parts={[{ text: content }]} />
-            {"\u200b"}
-          </div>
-          <textarea
-            id="entry-text"
-            ref={box}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={formatKeyDown}
-            rows={12}
-            style={{ background: "transparent" }}
-            className="notebook live-text relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 outline-none focus:border-white/30"
-          />
-        </div>
-        {preview && (
-          <div
-            onClick={() => setPreview(false)}
-            title="Click to go back to writing"
-            className="notebook min-h-[22rem] cursor-text whitespace-pre-wrap break-words rounded-xl border border-ember/25 py-3 pr-4 font-serif text-[18px] text-stone-200"
-          >
-            {content.trim() ? (
-              <FormattedText text={content} />
-            ) : (
-              <span className="text-stone-600">Nothing written yet.</span>
-            )}
-          </div>
-        )}
+        <RichText
+          id="entry-text"
+          handle={editor}
+          value={content}
+          onChange={setContent}
+          ariaLabel="Entry"
+          placeholder="Write here…"
+          className="notebook min-h-[22rem] rounded-xl border border-white/10 py-3 pr-4 font-serif text-[18px] text-stone-100 focus-within:border-white/30"
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

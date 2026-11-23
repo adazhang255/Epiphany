@@ -15,7 +15,13 @@ describe("searchWords", () => {
   })
 
   it("keeps apostrophes and letters beyond English", () => {
-    expect(searchWords("didn’t café")).toEqual(["didn’t", "café"])
+    expect(searchWords("didn’t café")).toEqual(["didn't", "café"])
+  })
+
+  it("matches straight and curly quotes alike", () => {
+    expect(hasAllWords("I didn’t go", searchWords("didn't"))).toBe(true)
+    expect(hasAllWords("I didn't go", searchWords("didn’t"))).toBe(true)
+    expect(hasAllWords("she said “hi”", ['"hi"'])).toBe(true)
   })
 })
 

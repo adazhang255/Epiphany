@@ -1,9 +1,10 @@
 import { findQuote } from "@/features/notes/lib/findQuote"
 
 // Formatting in an entry's text, written the Markdown way: **bold**,
-// *italic* (or _italic_), __underlined__, and at the start of a line "- " (or "* ") for a
-// bullet, "# " for a heading ("## " or "### " a smaller one) and "> " for a
-// quote. The text is stored just as written; the markers are hidden when
+// *italic* (or _italic_), __underlined__, ~~struck through~~, and at the
+// start of a line "- " (or "* ") for a bullet, "1. " for a numbered line,
+// "# " for a heading ("## " or "### " a smaller one) and "> " for a quote;
+// a line of just "---" is a divider. The text is stored just as written; the markers are hidden when
 // it's shown but stay in the page, so a character's place on screen is its
 // place in the text (highlights and selections rely on that).
 
@@ -16,12 +17,16 @@ export const SUBHEADING = 32 // a "## " or "### " line
 export const QUOTE = 64 // a "> " line
 export const QUOTE_MARK = 128 // its ">", shown as a bar
 export const UNDERLINE = 256
+export const STRIKE = 512
+export const RULE = 1024 // a divider line (its "---", shown as a line)
 
+const RULE_LINE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,}|—-+)[ \t]*$/gm
 const HEADING_LINE = /^(#{1,3})[ \t]+(?=\S)[^\n]*/gm
 const QUOTE_LINE = /^>([ \t]?)[^\n]*/gm
 
 const BULLET_LINE = /^([ \t]*)([-*])[ \t]+(?=\S)/gm
 const BOLD_RUN = /\*\*(?=\S)([^\n]*?\S)\*\*/g
+const STRIKE_RUN = /~~(?=[^\s~])([^\n]*?[^\s~])~~/g
 // (not inside a word: snake__case, __init__x)
 const UNDERLINE_RUN =
   /(?<![\p{L}\p{N}_])__(?=[^\s_])([^\n]*?[^\s_])__(?![\p{L}\p{N}_])/gu
@@ -37,7 +42,12 @@ export function formatFlags(text: string): Uint16Array {
     rest = rest.slice(0, start) + "\0".repeat(end - start) + rest.slice(end)
   }
 
-  for (const m of text.matchAll(HEADING_LINE)) {
+  for (const m of text.matchAll(RULE_LINE)) {
+    for (let i = m.index; i < m.index + m[0].length; i++)
+      flags[i] |= RULE | MARKER
+    blank(m.index, m.index + m[0].length)
+  }
+  for (const m of rest.matchAll(HEADING_LINE)) {
     const start = m.index
     const marker = /^#+[ \t]+/.exec(m[0])![0].length
     const kind = m[1].length === 1 ? HEADING : SUBHEADING
@@ -65,6 +75,14 @@ export function formatFlags(text: string): Uint16Array {
     flags[start + 1] |= MARKER
     flags[end - 2] |= MARKER
     flags[end - 1] |= MARKER
+    blank(start, start + 2)
+    blank(end - 2, end)
+  }
+  for (const m of [...rest.matchAll(STRIKE_RUN)]) {
+    const start = m.index
+    const end = start + m[0].length
+    for (let i = start; i < end; i++) flags[i] |= STRIKE
+    for (const i of [start, start + 1, end - 2, end - 1]) flags[i] |= MARKER
     blank(start, start + 2)
     blank(end - 2, end)
   }
@@ -121,7 +139,7 @@ export function stripInline(text: string) {
     out += text[i]
   }
   // a marker cut off from its pair (a highlight ending mid-bold)
-  return out.replace(/^(\*\*|__)(?=\S)|(?<=\S)(\*\*|__)$/g, "")
+  return out.replace(/^(\*\*|__|~~)(?=\S)|(?<=\S)(\*\*|__|~~)$/g, "")
 }
 
 // For a snippet: no markers, and bullets as "•".
@@ -130,12 +148,15 @@ export function plainText(text: string) {
 }
 
 // The text as it's shown, for export: runs with their formatting, the
-// markers left out and bullets as "•". (heading: 1 for "# ", 2 for "## ")
+// markers left out, bullets as "•" and a divider as a long dash.
+// (heading: 1 for "# ", 2 for "## ")
 export function shownRuns(text: string) {
   return formatRuns(text, formatFlags(text))
-    .filter((run) => !(run.flags & NOT_WORDS))
+    .filter((run) => run.flags & RULE || !(run.flags & NOT_WORDS))
     .map((run) => ({
-      text: run.flags & BULLET ? "•" : run.text,
+      text: run.flags & RULE ? "⸻" : run.flags & BULLET ? "•" : run.text,
+      strike: Boolean(run.flags & STRIKE),
+      rule: Boolean(run.flags & RULE),
       bold: Boolean(run.flags & BOLD),
       italic: Boolean(run.flags & ITALIC),
       underline: Boolean(run.flags & UNDERLINE),

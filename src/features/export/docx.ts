@@ -32,7 +32,8 @@ function paragraphs(text: string) {
                   bold: run.bold || run.heading > 0 || undefined,
                   italics: run.italic || run.quote || undefined,
                   underline: run.underline ? {} : undefined,
-                  color: run.quote ? "666666" : undefined,
+                  strike: run.strike || undefined,
+                  color: run.quote || run.rule ? "666666" : undefined,
                   size:
                     run.heading === 1 ? 32 : run.heading === 2 ? 28 : undefined,
                   break: i > 0 && j === 0 ? 1 : undefined,
